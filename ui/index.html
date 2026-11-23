@@ -1,0 +1,54 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: MIT OR Apache-2.0 -->
+<!-- Copyright (c) 2026 Dhakshnamoorthy Durgaraj -->
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>butterfly</title>
+<link rel="stylesheet" href="/app.css">
+<link rel="icon" type="image/png" href="/butterfly-logo.png">
+</head>
+<body>
+<div id="app">
+  <header id="topbar">
+    <a class="brand" id="brand" href="#/overview" title="Overview" aria-label="Butterfly overview">
+      <img class="brand-logo" src="/butterfly-logo.png" width="74" height="40" alt="">
+      <span>butterfly</span>
+    </a>
+    <div id="project" class="project"></div>
+    <div id="chips" class="chips"></div>
+    <div class="spacer"></div>
+    <input id="search" type="search" placeholder="Find function…  ( / )" autocomplete="off" spellcheck="false">
+    <button id="reportBtn" class="ghost" title="Open the self-contained traceability report (Software Verification Results)">Report</button>
+    <button id="provBtn" class="ghost" title="Provenance">Provenance</button>
+    <button id="themeBtn" class="ghost" title="Toggle theme">◐</button>
+  </header>
+
+  <aside id="sidebar">
+    <div id="variants" class="variants"></div>
+    <div class="side-head">
+      <span>Functions</span>
+      <select id="sort" title="Sort">
+        <option value="file">by file</option>
+        <option value="cov">least covered</option>
+        <option value="cyc">most complex</option>
+        <option value="gaps">most gaps</option>
+        <option value="name">by name</option>
+      </select>
+    </div>
+    <div id="fnlist" class="fnlist"></div>
+  </aside>
+
+  <main id="main">
+    <div id="content"></div>
+  </main>
+
+  <footer id="caveat"></footer>
+
+  <div id="prov" class="panel hidden"></div>
+  <div id="modal" class="modal hidden"></div>
+</div>
+<script src="/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,30 @@
+[package]
+name = "butterfly-ingest"
+description = "Parses compiler/coverage artifacts into a butterfly evidence database (qualification-path component)"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+butterfly-model = { path = "../model" }
+serde.workspace = true
+serde_json.workspace = true
+anyhow.workspace = true
+object.workspace = true
+gimli.workspace = true
+sha2.workspace = true
+sha1-checked.workspace = true
+rustc-demangle.workspace = true
+cpp_demangle.workspace = true
+regex = "1"
+toml = "0.8"
+# fcntl(F_GETPATH) and O_NONBLOCK, to check the file we hold rather than a name
+libc.workspace = true
+yaml-rust2.workspace = true
+
+[dev-dependencies]
+# The one place that decides what a missing fixture means (#227). Test-only:
+# nothing in src/ touches it.
+butterfly-testsupport = { path = "../testsupport" }

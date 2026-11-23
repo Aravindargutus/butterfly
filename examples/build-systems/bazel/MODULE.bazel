@@ -1,0 +1,14 @@
+# SPDX-License-Identifier: MIT OR Apache-2.0
+# Copyright (c) 2026 Dhakshnamoorthy Durgaraj
+#
+# Bzlmod. For a WORKSPACE-based repository the equivalent is an empty
+# WORKSPACE file plus the same `new_local_repository` below.
+module(name = "butterfly_bazel_example", version = "0.1.0")
+
+# Bazel 9 removed the built-in `cc_binary`/`cc_library`; they come from
+# rules_cc now and have to be both depended on here and `load()`ed in the
+# BUILD file.
+bazel_dep(name = "rules_cc", version = "0.1.1")
+# The fixture selects Linux-only flags explicitly; Bzlmod requires that
+# the constraint repository be visible to the root module.
+bazel_dep(name = "platforms", version = "1.0.0")

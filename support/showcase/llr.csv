@@ -1,0 +1,2 @@
+id,text,type,status,parent,code,tests,rationale
+LLR-LIM-001,"An altitude presented for limiting shall be returned unchanged when it lies within the envelope, and as the nearer bound when it lies outside it.",low-level,implemented,HLR-LIM-001,src/limits.c::clamp_alt,src/tests.c::t_clamp;src/tests.c::t_ceiling,"Both edges are stated: a limiter that clamps one of them passes a careless test."

@@ -1,0 +1,10 @@
+# SPDX-License-Identifier: MIT OR Apache-2.0
+# Copyright (c) 2026 Dhakshnamoorthy Durgaraj
+#
+# Requirement tags for the multi-file library. `scope = "both"` because tags
+# appear in the header comment above a function AND, in a few places, on the
+# specific line that implements a sub-requirement.
+[requirements]
+patterns = ['@satisfies\s+([A-Za-z0-9_.:/-]+)', '@verifies\s+([A-Za-z0-9_.:/-]+)']
+scope = "both"
+lookback = 30

@@ -1,0 +1,37 @@
+# SPDX-License-Identifier: MIT OR Apache-2.0
+# Copyright (c) 2026 Dhakshnamoorthy Durgaraj
+#
+# Exploratory multi-variant build:  butterfly build examples/cpp/butterfly-build.toml --serve
+# Everything it produces is stamped EXPLORATORY — it is for understanding the
+# optimiser, never for certification credit.
+[project]
+name = "flight-cpp"
+source_root = "."
+out_dir = "variants"
+
+[compiler]
+kind = "clang"
+cc = "clang++"
+sources = ["flight.cpp"]
+common_flags = ["-std=c++17", "-Wall", "-Wextra", "-g", "-fno-exceptions", "-fno-rtti"]
+output = "flight"
+
+[coverage]
+flags = ["-O0", "-fprofile-instr-generate", "-fcoverage-mapping", "-fcoverage-mcdc"]
+run = ["{exe}"]
+
+[[variant]]
+name = "O0"
+flags = ["-O0", "-fstack-usage"]
+
+[[variant]]
+name = "O1"
+flags = ["-O1", "-fstack-usage"]
+
+[[variant]]
+name = "O2"
+flags = ["-O2", "-fstack-usage"]
+
+[[variant]]
+name = "Os"
+flags = ["-Os", "-fstack-usage"]

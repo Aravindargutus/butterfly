@@ -1,0 +1,372 @@
+# SPDX-License-Identifier: MIT OR Apache-2.0
+# Copyright (c) 2026 Dhakshnamoorthy Durgaraj
+#
+# Build, run every test suite, and exercise the documented workflow on the
+# C example. Two things are deliberate:
+#   * fetch-depth: 0 -- the change-impact tests read git history, and a
+#     shallow clone is (correctly) flagged as truncated.
+#   * the C example is built first, and the run fails if any suite reports
+#     "skipping": the end-to-end and CLI tests must run, not be skipped.
+name: ci
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      # A change that touches nothing but prose cannot change what *this
+      # job* observes, and most of the DO-330 work (#112) is exactly that.
+      # ui/index.html -- which the viewer embeds -- is not matched, and a
+      # pull request that changes prose *and* code still runs.
+      #
+      # One test file does read Markdown that is committed here:
+      # crates/ingest/tests/example_numbers.rs reads examples/*/README.md
+      # (#158). Running this job on every README edit would put prose
+      # through clang, LLVM, a Rust nightly, twelve example builds and a
+      # Playwright install, which is the opposite of what #147 was for.
+      # Those checks run in .github/workflows/docs-numbers.yml instead,
+      # which needs the toolchain and nothing else. Every other test that mentions *.md
+      # writes its own into a temporary repository.
+      - "**/*.md"
+      - "docs/**"
+      - "LICENSE-*"
+      - "NOTICE"
+      - ".github/ISSUE_TEMPLATE/**"
+  # a hosted run started on purpose, e.g. on a draft (#308)
+  workflow_dispatch:
+  # Hosted minutes are budgeted (#308): only pull requests into main start
+  # a run, and only once they are ready for review (the draft guard on
+  # every job below); stacked and draft pull requests are validated with
+  # scripts/ci-local.sh instead.
+  pull_request:
+    branches: [main]
+    # `edited` is for one transition only: a ready pull request stacked on
+    # another branch, retargeted to main, emits `edited` and nothing else.
+    # Any other edit (title, description) is filtered out by the job guard
+    # and kept out of the concurrency group of real runs (#309 review).
+    types: [opened, synchronize, reopened, ready_for_review, edited]
+    # the same list as above, written out: YAML anchors are not something to
+    # bet a workflow's ability to parse on
+    paths-ignore:
+      - "**/*.md"
+      - "docs/**"
+      - "LICENSE-*"
+      - "NOTICE"
+      - ".github/ISSUE_TEMPLATE/**"
+
+# One run per branch and event, and a newer run cancels an older one --
+# `main` included. Merges come in bursts: on 2026-09-15 four landed within
+# minutes and each ran the full suite, when the last one already contained
+# all four. Every one of those pull requests was tested at its head before it
+# merged, and the newest run on `main` tests the combination, so cancelling
+# the runs in between loses no coverage. The event is part of the key so a
+# merge cannot cancel a run of a different kind. `cargo audit` is deliberately
+# not in this file: it must not be cancelled, so it lives in audit.yml
+# (review of #147).
+concurrency:
+  # an edit that changed nothing but text runs in a group of its own, so it
+  # can never cancel (or queue behind) a real run (#309 review)
+  group: ci-${{ github.event_name }}-${{ github.ref }}${{ (github.event.action == 'edited' && !github.event.changes.base) && format('-noop-{0}', github.run_id) || '' }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  # the tree builds without warnings; keep it that way
+  RUSTFLAGS: -D warnings
+
+jobs:
+  # Style and lints, on their own runner: they need no clang, no LLVM and no
+  # example build, so they answer in under a minute instead of waiting behind
+  # the test job. `-D warnings` here matches the RUSTFLAGS the build already
+  # uses, so a lint cannot pass CI by being merely a warning.
+  lint:
+    # a draft is work in progress, validated locally, and an `edited` event
+    # counts only when it retargeted the base; skipped jobs cost nothing (#308)
+    if: ${{ !github.event.pull_request.draft && (github.event.action != 'edited' || github.event.changes.base) }}
+    name: rustfmt + clippy
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Toolchain (pinned by rust-toolchain.toml, with rustfmt and clippy)
+        run: rustup show
+
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+
+      - name: Formatting
+        run: cargo fmt --all --check
+
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets --locked -- -D warnings
+
+  # Linux only. macOS runners are billed at ten times a Linux minute and the
+  # project does not use macOS, so it is not a CI host. What that gives up is
+  # stated rather than hidden: the Mach-O reading code is still exercised by
+  # the synthetic tests that run here, but a real Apple toolchain is not --
+  # Mach-O `LC_MAIN` normalisation (#8), duplicate local symbols (#36) and
+  # the llvm-profdata pairing (#61) were all found on macOS. If the Tool
+  # Operational Requirements (#127) ever declare macOS an operational
+  # environment, a macOS leg has to come back; until then
+  # `scripts/ci-local.sh` on a Mac is the check for anyone who needs one.
+  test:
+    # a draft is work in progress, validated locally, and an `edited` event
+    # counts only when it retargeted the base; skipped jobs cost nothing (#308)
+    if: ${{ !github.event.pull_request.draft && (github.event.action != 'edited' || github.event.changes.base) }}
+    name: test (ubuntu-24.04)
+    runs-on: ubuntu-24.04
+    # a hung server test would otherwise bill for up to six hours
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Toolchain (pinned by rust-toolchain.toml, with llvm-tools)
+        run: rustup show
+
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+
+      # -fcoverage-mcdc needs clang >= 18, which Ubuntu 24.04 ships. Raw
+      # profiles carry a format version that llvm-profdata must match
+      # exactly; Ubuntu's clang 18 writes v9, the rustup llvm-tools expect a
+      # newer one. Pair the system clang with the system LLVM.
+      - name: LLVM
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q llvm-18
+          echo "LLVM_BIN=/usr/lib/llvm-18/bin" >> "$GITHUB_ENV"
+
+      # Universal Ctags for the optional `butterfly tags` index. The feature
+      # is optional, but its tests must run rather than skip, or CI would
+      # green a suite it never exercised.
+      - name: Universal Ctags
+        run: sudo apt-get install -y -q universal-ctags
+
+      # Subversion for the SVN source-revision suite (#301), which builds its
+      # repositories with svnadmin and a file:// checkout. Absent, the suite
+      # would skip -- and a skip fails this job.
+      - name: Subversion
+        run: sudo apt-get install -y -q subversion
+
+      # Report the tools the builds will actually use. The profdata must be
+      # the one paired with this clang: printing a different one is how a
+      # version skew stayed invisible in the log until the merge failed.
+      - name: Compiler
+        run: |
+          clang --version
+          ctags --version | head -1
+          svn --version --quiet
+          LLVM_FROM=clang . ./examples/llvm-env.sh
+          echo "llvm-profdata: $LLVM_PROFDATA"
+          "$LLVM_PROFDATA" --version
+
+      - name: Build the C example (the end-to-end and CLI suites need it)
+        run: ./examples/c/build.sh
+
+      # The multi-file library example, which the tags test indexes for its
+      # headers and inline/static functions.
+      - name: Build the C library example (the tags test needs it)
+        run: ./examples/c-lib/build.sh
+
+      # The same library as delivered -- an archive with no main -- linked
+      # with its harness, and the objects it was compiled from: the
+      # unlinked-object suite compares the two (#169).
+      - name: Build the C library as delivered, with its harness
+        run: ./examples/c-lib/build-lib.sh
+
+      # A switch that compiles to a jump table, at -O0 and -O2 (#171).
+      - name: Build the jump-table example
+        run: ./examples/c-switch/build.sh
+
+      # C++ with and without exceptions and RTTI, one program (#165).
+      - name: Build the C++ exceptions example
+        run: ./examples/cpp-exceptions/build.sh
+
+      # Two translation units sharing one header `static inline`: the
+      # duplicate-local-symbol fixture (#36). Its suite must run, not skip.
+      - name: Build the C header-inline example
+        run: ./examples/c-header-inline/build.sh
+
+      # Its converse: a static the profile has no record for at all, beside a
+      # covered extern of the same name. Without it the negative case of #206
+      # goes unexercised -- the suite skips rather than fails (#237).
+      - name: Build the C unprofiled-static example
+        run: ./examples/c-unprofiled-static/build.sh
+
+      # The C++ shapes of the same problem: anonymous-namespace functions of
+      # one name in two units, and a header `inline` across all three.
+      - name: Build the C++ header-inline example
+        run: ./examples/cpp-header-inline/build.sh
+
+      # The C++ single-file and library examples, so the C++ construct-vocabulary
+      # regression (e2e_cpp_constructs) runs rather than reporting a skip (#162).
+      - name: Build the C++ example
+        run: ./examples/cpp/build.sh
+
+      - name: Build the C++ library example
+        run: ./examples/cpp-lib/build.sh
+
+      # Constructors and destructors, overloaded operators, lambdas and
+      # new/delete: the everyday C++ the other examples avoid (#166).
+      - name: Build the C++ constructs example
+        run: ./examples/cpp-constructs/build.sh
+
+      # The Rust examples' coverage build needs a nightly for
+      # -Zcoverage-options=condition (branch regions); the image under
+      # analysis is still built by the stable toolchain rust-toolchain.toml
+      # pins. Dated, not `nightly`: an evidence tool's fixture must be
+      # rebuildable, and a floating nightly can change how regions are mapped
+      # between one run and the next. Measured for #152: about 167 MB of
+      # compressed download (rustc, rust-std, cargo, llvm-tools; minimal
+      # profile) and 24 s to install on a developer machine, and the two
+      # builds below took 4 s and 6 s -- well under the two billed minutes
+      # #152 set as the bar for gating it. The build scripts read the pin
+      # from BUTTERFLY_NIGHTLY; the nightly's own llvm-profdata merges its
+      # profile, so none of this touches the LLVM step above.
+      - name: Nightly for the Rust examples' coverage build
+        run: |
+          rustup toolchain install nightly-2026-08-10 --profile minimal --component llvm-tools --no-self-update
+          echo "BUTTERFLY_NIGHTLY=nightly-2026-08-10" >> "$GITHUB_ENV"
+
+      # Backs rust.branch-coverage, rust.demangling, rust.runtime-check,
+      # toolchain.rustc-nightly and toolchain.rustc-stable in
+      # support/matrix.toml, through e2e_rust_constructs and example_numbers.
+      - name: Build the Rust example
+        run: ./examples/rust/build.sh
+
+      # Backs rust.prologue-frame, rust.atomic-global and rust.fn-pointer-table.
+      - name: Build the Rust library example
+        run: ./examples/rust-lib/build.sh
+
+      # Backs rust.generics, rust.dyn-dispatch, rust.closure and
+      # rust.macro-rules, through rust_constructs and example_numbers (#167).
+      # Same nightly as the two above.
+      - name: Build the Rust constructs example
+        run: ./examples/rust-constructs/build.sh
+
+      # One binary run once per test, so the per-test attribution path is
+      # exercised rather than skipped (#41).
+      - name: Build the per-test example
+        run: ./examples/c-per-test/build.sh
+
+      # Depth, recursion, mutual recursion, an indirect call and an external
+      # one, so the expandable Calls graph has every node state to draw.
+      # Every other C example is flat, so none of them exercise it (#100).
+      - name: Build the call-graph example
+        run: ./examples/c-callgraph/build.sh
+
+      # Dynamic frames, goto, a union, a bitfield, varargs and a macro that
+      # expands to control flow: the C constructs no other example has (#168).
+      - name: Build the C constructs example
+        run: ./examples/c-constructs/build.sh
+
+      # The GCC example, so the gcov front end is exercised on real GCC
+      # output rather than on a fixture somebody wrote by hand (#45). Ubuntu
+      # runners carry gcc and its matching gcov. The tests that consume the
+      # fixture are compiled on Linux only (#89, #92).
+      - name: Build the GCC example (the gcov front end needs it)
+        run: ./examples/c-gcc/build.sh
+
+      # The viewer's own tests: they run the real app.js in a VM, so they
+      # cover what Rust cannot -- a resolution key written by one pane and
+      # read by another, for instance. Ubuntu runners ship node; this runs
+      # where the test job runs.
+      - name: Viewer tests
+        run: |
+          shopt -s nullglob
+          for t in ui/*.test.cjs; do node --test "$t"; done
+
+      - name: Build
+        run: cargo build --locked --all-targets
+
+      # The real-browser checks (ui/browser, #69). They cover what the VM
+      # tests above cannot: event ordering, focus and hover behaviour, layout
+      # overflow, and request races between the viewer and its own API --
+      # including the five regressions (BF-QA-01..05) that were found by hand
+      # during the QA pass for #68 and had no automated equivalent.
+      #
+      # `npm ci` needs the committed lockfile, which is what pins Playwright.
+      - name: Install the browser checks
+        working-directory: ui/browser
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+
+      # The variants suite needs the exploratory multi-variant output, which
+      # the fixture steps above deliberately do not build for the Rust
+      # suites. Build it here so the suite runs rather than reporting a skip.
+      - name: Build the variants fixture for the browser checks
+        run: ./target/debug/butterfly build examples/c/butterfly-build.toml
+
+      - name: Real-browser checks
+        env:
+          BROWSER_CHECK_OUT: ${{ runner.temp }}/browser-checks
+        run: node ui/browser/run.cjs
+
+      # impact_cli, changes_cli, resolutions_loading, serve_auth and
+      # serve_startup load examples/c/build/evidence.json (see their
+      # `fn evidence()`). The end-to-end step below writes it, but that runs
+      # *after* the tests, so without producing it here those suites skip --
+      # and, being passing tests, the harness captures their "skipping:" line
+      # so the guard below never sees it. Ingest it once, at the path they
+      # check, before the tests run.
+      - name: Ingest evidence for the CLI/server suites
+        run: cargo run --locked -- ingest examples/c/build --source-root examples/c -o examples/c/build/evidence.json
+
+      - name: Test
+        run: |
+          # --nocapture so a passing-but-skipping test's "skipping:" line
+          # reaches the log; the harness hides a passing test's stdout without
+          # it, which is how skipped suites went unnoticed here.
+          cargo test --locked -- --nocapture 2>&1 | tee test.log
+          test "${PIPESTATUS[0]}" -eq 0
+          # The exploratory multi-variant suite needs `butterfly build
+          # examples/c/butterfly-build.toml`, which is not part of this
+          # fixture set; exclude it by name so the "no skipped suites" claim is
+          # true of everything this job actually builds. Any other skip fails.
+          # Filter to a file rather than `grep -q` behind a pipe: `grep -q`
+          # exits early, its producer takes SIGPIPE, and pipefail then reports
+          # 141 -- a real skip could read as none.
+          #
+          # The measured-coverage suite (e2e_rust_qemu, #164) is the second
+          # exclusion. Its fixture needs QEMU and a bare-metal target, which
+          # this job does not install (the nightly it also needs is installed
+          # above, for the Rust examples): billed minutes nobody has asked
+          # for. It is verified by scripts/ci-local.sh instead, which
+          # builds it wherever QEMU exists and fails if the suite then skips.
+          # Building the fixture here is what removes this exclusion.
+          grep "skipping:" test.log | grep -Fv "butterfly build examples/c/butterfly-build.toml" | grep -Fv "examples/rust-qemu/build.sh" > skipped.txt || true
+          if [ -s skipped.txt ]; then
+            echo "::error::a test suite was skipped -- every suite must run in CI"
+            cat skipped.txt
+            exit 1
+          fi
+
+      - name: The documented workflow, end to end
+        run: |
+          cargo run --locked -- summary examples/c/build/evidence.json
+          cargo run --locked -- baseline examples/c/build/evidence.json -o examples/c/build/butterfly-baseline.json
+          cargo run --locked -- changes examples/c/build/evidence.json --since HEAD~1 --baseline examples/c/build/butterfly-baseline.json
+          cargo run --locked -- impact examples/c/build/evidence.json --json > /dev/null
+          cargo run --locked -- report examples/c/build/evidence.json -o examples/c/build/report.html
+          test -s examples/c/build/report.html
+          # The gate gating this repo (#43): floors below the example's real
+          # numbers with headroom for drift, a gap ceiling so the count is
+          # accountable, and a self-comparison to exercise regression mode.
+          cargo run --locked -- check examples/c/build/evidence.json \
+            --min-lines 75 --min-outcomes 70 --max-unresolved-gaps 40 \
+            --no-regression examples/c/build/evidence.json
+
+      # Upload after validation: a storage quota failure must not prevent
+      # the Rust suites or documented workflow from running. Keep upload
+      # failures visible, and retain diagnostics even when a test fails.
+      - name: Keep the browser-check artifacts
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: browser-checks
+          path: ${{ runner.temp }}/browser-checks
+          if-no-files-found: ignore

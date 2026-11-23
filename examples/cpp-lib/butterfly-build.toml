@@ -1,0 +1,39 @@
+# SPDX-License-Identifier: MIT OR Apache-2.0
+# Copyright (c) 2026 Dhakshnamoorthy Durgaraj
+#
+#   butterfly build examples/cpp-lib/butterfly-build.toml --serve
+#
+# Exploratory only. Every source is listed; per variant the driver compiles
+# each to an object of its own (so each keeps its own .su), links them, and on
+# macOS runs dsymutil, as a one-step compile and link would.
+[project]
+name = "flight-lib-cpp"
+source_root = "."
+out_dir = "variants"
+
+[compiler]
+kind = "clang"
+cc = "clang++"
+sources = ["src/util.cpp", "src/state.cpp", "src/mode.cpp", "src/crc.cpp", "src/sched.cpp", "src/main.cpp"]
+common_flags = ["-std=c++17", "-Wall", "-Wextra", "-g", "-Iinclude", "-fno-exceptions", "-fno-rtti"]
+output = "flight"
+
+[coverage]
+flags = ["-O0", "-fprofile-instr-generate", "-fcoverage-mapping", "-fcoverage-mcdc"]
+run = ["{exe}"]
+
+[[variant]]
+name = "O0"
+flags = ["-O0", "-fstack-usage"]
+
+[[variant]]
+name = "O1"
+flags = ["-O1", "-fstack-usage"]
+
+[[variant]]
+name = "O2"
+flags = ["-O2", "-fstack-usage"]
+
+[[variant]]
+name = "Os"
+flags = ["-Os", "-fstack-usage"]

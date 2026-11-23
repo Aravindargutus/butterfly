@@ -1,0 +1,8 @@
+# The dependency tree is pinned by package-lock.json, which IS committed:
+# `npm ci` requires it, and it is what makes the pinning real rather than
+# a range in package.json.
+node_modules/
+
+# Run artifacts: logs, screenshots, and the JSON result files. Written into
+# a private temp directory by default; this covers an explicit --out here.
+artifacts/

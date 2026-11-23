@@ -1,0 +1,167 @@
+# SPDX-License-Identifier: MIT OR Apache-2.0
+# Copyright (c) 2026 Dhakshnamoorthy Durgaraj
+#
+# Build the tagged commit and publish it as a GitHub Release (#120, step 4).
+#
+# WHAT TRIGGERS IT: a pushed tag matching `v*`, and nothing else. There is no
+# `workflow_dispatch` and no `push: branches` here on purpose. A release is
+# irreversible and public -- the tag is the only way to ask for one, so a
+# release can never happen because someone clicked a button or because a merge
+# landed. docs/qualification/versioning.md states the same rule from the other
+# side: the tag IS the release.
+#
+# WHAT IT BUILDS: `--locked --release`, on the tagged commit, on ubuntu-24.04.
+#
+#   * `--locked` so the dependency set is the one recorded in Cargo.lock at
+#     that tag. A release built against a resolved-fresh dependency graph is
+#     not the tree that was reviewed, which for a tool meant to produce
+#     certification evidence is the whole point (DO-330 §7.2.7.d).
+#   * Linux only. macOS runners bill at ten times a Linux minute and the
+#     project does not use macOS as a CI host -- ci.yml dropped its macOS leg
+#     for exactly this reason (#147), and re-adding one here for a release
+#     would undo that decision quietly. What it gives up is stated rather than
+#     hidden: there is no published macOS binary, and a Mac user builds from
+#     source with `cargo install --path crates/cli`. If the Tool Operational
+#     Requirements (#127) ever declare macOS an operational environment, a
+#     macOS leg belongs here and in ci.yml together.
+#   * No build cache. ci.yml uses Swatinem/rust-cache because its job is to
+#     answer quickly and often; this job runs a handful of times a year and
+#     produces an artifact people will hash. A cold build from the lockfile is
+#     the cheaper thing to reason about.
+#
+# WHAT IT PUBLISHES: the `butterfly` binary and its SHA-256, so that the hash
+# a user computes can be compared with the one this workflow computed, and so
+# that `provenance.toolVersion` in an evidence file has a released artifact to
+# point at (DO-330 Annex A T-8 objectives 1 and 4). `provenance.toolCommit`
+# names the commit finer than the version can (#117); the step below checks
+# that the binary's own answer is the tagged commit.
+#
+# NO THIRD-PARTY ACTION creates the release. `gh` is preinstalled on the
+# runner and `gh release create` does the whole job with the token GitHub
+# already issues, so the only action used here is `actions/checkout`, pinned
+# to the same reviewed SHA as ci.yml, audit.yml and showcase.yml (#64). A
+# release job is the one place where an action that can be re-pointed at a
+# different commit would be able to substitute the artifact people trust.
+name: release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+# Never cancel a release. Unlike ci.yml, where a newer run supersedes an
+# older one, two tags are two different artifacts and neither stands in for
+# the other (the same reasoning as audit.yml).
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    name: build and publish ${{ github.ref_name }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      # to create the release and upload its assets; nothing else
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Toolchain (pinned by rust-toolchain.toml)
+        run: rustup show
+
+      # A tag that disagrees with Cargo.toml would publish `butterfly 0.2.0`
+      # under a v0.2.1 release, and `provenance.toolVersion` in every evidence
+      # file that binary writes would then name a version that has no release.
+      # Fail here rather than after the artifact exists.
+      - name: The tag must be the version in Cargo.toml
+        run: |
+          set -euo pipefail
+          crate="$(cargo metadata --locked --no-deps --format-version 1 \
+            | jq -r '.packages[] | select(.name == "butterfly") | .version')"
+          tag="${GITHUB_REF_NAME#v}"
+          echo "tag: $tag   Cargo.toml: $crate"
+          if [ "$tag" != "$crate" ]; then
+            echo "::error::tag ${GITHUB_REF_NAME} does not match the workspace version ${crate}. Bump Cargo.toml and re-tag, or delete the tag."
+            exit 1
+          fi
+          echo "VERSION=$crate" >> "$GITHUB_ENV"
+
+      - name: Build
+        run: cargo build --locked --release --package butterfly
+
+      # The binary names its own build (#117): the version, the commit it was
+      # built from and whether the tree was clean, the same words `ingest`
+      # writes into every evidence file. The commit must be the tag's
+      # (`HEAD^{commit}` rather than GITHUB_SHA, which for an annotated tag
+      # can be the tag object) and the tree must be clean: a release whose
+      # evidence would name a different commit, or a modified tree, is not
+      # the reviewed tree and must not be published.
+      - name: It runs, and says the version and commit it was built from
+        run: |
+          set -euo pipefail
+          got="$(./target/release/butterfly --version)"
+          echo "$got"
+          test "$got" = "butterfly ${VERSION} (commit $(git rev-parse 'HEAD^{commit}'), clean tree)"
+
+      # One directory holding exactly what is published, so the hash is taken
+      # over the file that is uploaded and not over a copy of it. The name
+      # carries the target triple: a second target added later must not be
+      # able to collide with this one.
+      - name: Stage the artifact and hash it
+        run: |
+          set -euo pipefail
+          name="butterfly-${VERSION}-x86_64-unknown-linux-gnu"
+          mkdir -p dist
+          cp target/release/butterfly "dist/${name}"
+          cd dist
+          # `sha256sum -c <file>.sha256` verifies it as-is; the name inside is
+          # bare so it checks wherever the two files are downloaded to.
+          sha256sum "${name}" > "${name}.sha256"
+          cat "${name}.sha256"
+          sha256sum -c "${name}.sha256"
+          echo "ASSET=dist/${name}" >> "$GITHUB_ENV"
+
+      # --verify-tag: refuse to publish unless the tag actually exists on the
+      # remote, so a release cannot be created from a ref that was deleted
+      # between the push and this step.
+      #
+      # The notes go through a heredoc and `--notes-file` rather than an
+      # inline `--notes "..."`: the body carries backticks, brackets and
+      # quotes, and getting a multi-line markdown document through one layer
+      # of shell quoting intact is a thing to not have to re-check. The
+      # heredoc delimiter is unquoted so ${VERSION} and ${GITHUB_SHA} expand,
+      # and the backticks are escaped for the same reason.
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          repo_at_tag="https://github.com/${GITHUB_REPOSITORY}/blob/${GITHUB_REF_NAME}"
+          cat > dist/notes.md <<NOTES
+          Linux x86_64 binary, built with \`cargo build --locked --release\` from
+          commit \`${GITHUB_SHA}\` on ubuntu-24.04. There is no macOS or Windows
+          binary; build from source with \`cargo install --path crates/cli\`.
+
+          Verify the download:
+
+          \`\`\`
+          sha256sum -c butterfly-${VERSION}-x86_64-unknown-linux-gnu.sha256
+          \`\`\`
+
+          What changed: [CHANGELOG.md](${repo_at_tag}/CHANGELOG.md).
+          How the version was chosen: [versioning.md](${repo_at_tag}/docs/qualification/versioning.md).
+
+          butterfly is **not qualified** under DO-330. What that means, and what
+          qualification would take, is in
+          [the assessment](${repo_at_tag}/docs/qualification/DO-330-assessment.md).
+          NOTES
+          gh release create "${GITHUB_REF_NAME}" \
+            --verify-tag \
+            --title "butterfly ${VERSION}" \
+            --notes-file dist/notes.md \
+            "${ASSET}" \
+            "${ASSET}.sha256"

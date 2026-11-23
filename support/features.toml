@@ -1,0 +1,1673 @@
+# SPDX-License-Identifier: MIT OR Apache-2.0
+# Copyright (c) 2026 Dhakshnamoorthy Durgaraj
+#
+# The feature showcase, as data (#154, part of #150).
+#
+# One [[feature]] per section of docs/showcase/index.html. The page is built
+# from this file and from what `scripts/showcase/capture.cjs` records when it
+# runs the commands and drives the viewer written down here -- so the rule of
+# the epic is mechanical: NOTHING APPEARS ON THE PAGE UNLESS THE SCRIPT CAN
+# REPRODUCE IT.
+#
+# Not under docs/: a docs-only change skips CI by design (#147), and an edit
+# to a claim must not.
+#
+# ── How an entry is read ────────────────────────────────────────────────────
+#
+#   [fixture.NAME]   an example, the commands that build it (run VERBATIM from
+#                    the repository root, and printed verbatim in the
+#                    "Reproduce it" block), the evidence `butterfly serve` is
+#                    given, and `ci`: is it built by hosted CI? (false => the
+#                    page says "verified locally; not built in hosted CI")
+#
+#   [[feature]]      id V01..V27 (the epic's numbering; V28 was added by #164), its section issue,
+#                    claim, limits, fixtures, and status:
+#                      captured  the script shows it
+#                      pending   blocked_by says which issue it waits for; the
+#                                page renders "not yet demonstrated"
+#
+#   [[feature.cmd]]  a command run verbatim after the fixtures' own. `exit` is
+#                    the status it must end with (a refusal is a feature: 3
+#                    and 1 are expected below); `show = true` puts its real
+#                    output on the page; `expect` are strings that output
+#                    must contain.
+#
+#   [[feature.shot]] a screenshot: `route` (URL hash), `seed` (localStorage
+#                    before the viewer starts), `steps` (Playwright selectors:
+#                    click, hover, fill+value, select+value, press, wait,
+#                    wait_gone, pause, scroll, move, wheel, drag), `expect` (text
+#                    the page must show -- a caption is a claim too), `clip`
+#                    (crop to these elements), `requires` (a captured fact
+#                    that must hold on this host, else the shot is rendered
+#                    as "not captured on this host" with `requires_reason`).
+#                    `{fn:NAME}` / `{file:NAME}` resolve to ids from
+#                    /api/evidence: never hard-code an id.
+#
+#   {{fixture.path}} in a claim, limit, caption or expectation is a number
+#                    read from the evidence at capture time (facts.cjs). A
+#                    number is never typed in here.
+#
+# ── Writing a claim ─────────────────────────────────────────────────────────
+#
+# The readers audit for a living. Say what the screenshot shows and stop.
+# Coverage colour is PROJECTED unless a trace was imported; the Variables
+# numbering is STATIC instruction order; the source-to-object review is done
+# by a HUMAN; exploratory builds are never certification evidence; the tool
+# is NOT qualified. No "certified", no "compliant", no superlatives.
+
+[[group]]
+id = "evidence"
+title = "Reading the evidence"
+[[group]]
+id = "trace"
+title = "Requirements and change"
+[[group]]
+id = "builds"
+title = "Builds, baselines and reports"
+[[group]]
+id = "automation"
+title = "From the terminal and in CI"
+[[group]]
+id = "trust"
+title = "What you are trusting"
+[[group]]
+id = "use"
+title = "Getting around and getting started"
+
+# ─────────────────────────────── fixtures ───────────────────────────────────
+
+[fixture.c]
+dir = "examples/c"
+ci = true
+build = [
+  "./examples/c/build.sh",
+  "butterfly ingest examples/c/build --source-root examples/c -o examples/c/build/evidence.json",
+]
+evidence = "examples/c/build/evidence.json"
+
+[fixture.c-lib]
+dir = "examples/c-lib"
+ci = true
+build = [
+  "./examples/c-lib/build.sh",
+  "butterfly ingest examples/c-lib/build --source-root examples/c-lib -o examples/c-lib/build/evidence.json",
+]
+evidence = "examples/c-lib/build/evidence.json"
+
+[fixture.c-per-test]
+dir = "examples/c-per-test"
+ci = true
+build = [
+  "./examples/c-per-test/build.sh",
+  "butterfly ingest examples/c-per-test/build --source-root examples/c-per-test --tests examples/c-per-test/build/tests --requirements examples/c-per-test/requirements.txt -o examples/c-per-test/build/evidence.json",
+  "butterfly requirements examples/c-per-test/llr.yaml -o examples/c-per-test/build/requirements.json",
+]
+evidence = "examples/c-per-test/build/evidence.json"
+
+[fixture.c-callgraph]
+dir = "examples/c-callgraph"
+ci = true
+build = [
+  "./examples/c-callgraph/build.sh",
+  "butterfly ingest examples/c-callgraph/build --source-root examples/c-callgraph -o examples/c-callgraph/build/evidence.json",
+]
+evidence = "examples/c-callgraph/build/evidence.json"
+
+[fixture.cpp]
+dir = "examples/cpp"
+ci = true
+build = [
+  "./examples/cpp/build.sh",
+  "butterfly ingest examples/cpp/build --source-root examples/cpp -o examples/cpp/build/evidence.json",
+]
+evidence = "examples/cpp/build/evidence.json"
+
+[fixture.cpp-lib]
+dir = "examples/cpp-lib"
+ci = true
+build = [
+  "./examples/cpp-lib/build.sh",
+  "butterfly ingest examples/cpp-lib/build --source-root examples/cpp-lib -o examples/cpp-lib/build/evidence.json",
+]
+evidence = "examples/cpp-lib/build/evidence.json"
+
+[fixture.rust]
+dir = "examples/rust"
+ci = true
+build = [
+  "./examples/rust/build.sh",
+  "butterfly ingest examples/rust/build --source-root examples/rust -o examples/rust/build/evidence.json",
+]
+evidence = "examples/rust/build/evidence.json"
+
+# Four optimisation levels of examples/c. The variants directory is
+# gitignored, so this is always a fresh build.
+[fixture.c-variants]
+dir = "examples/c"
+ci = true
+build = ["butterfly build examples/c/butterfly-build.toml"]
+evidence = [
+  "examples/c/variants/evidence-O0.json",
+  "examples/c/variants/evidence-O1.json",
+  "examples/c/variants/evidence-O2.json",
+  "examples/c/variants/evidence-Os.json",
+]
+
+# The x86-64 state of the Variables panel, from the hand-written evidence the
+# browser check exports (ui/browser/checks/vars.cjs). It is a fixture of the
+# VIEWER, labelled as such wherever it is shown: an AArch64 host cannot
+# produce a real x86-64 image, and an x86-64 host shows this state for real.
+[fixture.vars-x86_64]
+dir = "scripts/showcase/synthetic.cjs"
+ci = true
+synthetic = true
+build = ["node scripts/showcase/synthetic.cjs vars-x86_64 target/showcase/vars-x86_64/evidence.json"]
+evidence = "target/showcase/vars-x86_64/evidence.json"
+
+
+# Measured coverage: a no_std AArch64 image run under QEMU with an execution
+# trace (#164, PR #208, on `main` since). The only example here that imports
+# a trace, and so the only one whose coverage is measured rather than
+# projected. `ci = false`: the hosted workflow excuses it by name from its
+# no-skips rule, because an emulator costs billed minutes on every run.
+[fixture.rust-qemu]
+dir = "examples/rust-qemu"
+ci = false
+build = [
+  "./examples/rust-qemu/build.sh",
+  "butterfly ingest examples/rust-qemu/build --source-root examples/rust-qemu -o examples/rust-qemu/build/evidence.json",
+]
+evidence = "examples/rust-qemu/build/evidence.json"
+
+# ─────────────────────────────── V01 ────────────────────────────────────────
+
+[[feature]]
+id = "V01"
+issue = 173
+group = "evidence"
+title = "Overview dashboard"
+status = "captured"
+fixtures = ["c-per-test", "c-lib"]
+claim = """
+One page answers "where do we stand against Annex A Table A-7": coverage by \
+objective, gaps by kind, a worklist of what to test next ordered by how much \
+each test would close, stack chains, data coupling, provenance and caveats. \
+On `examples/c-per-test` that is {{c-per-test.functionsExecuted}} of \
+{{c-per-test.functions}} functions executed, {{c-per-test.linesCovered}}/{{c-per-test.linesTotal}} lines, \
+{{c-per-test.branchesCovered}}/{{c-per-test.branchesTotal}} branch outcomes and \
+{{c-per-test.gapsTotal}} object-code gaps, all unresolved."""
+limits = [
+  "Object-code coverage in this section's screenshots is projected from source coverage through the line table. It is measured only when an execution trace was imported, and neither example behind this section imports one, so no object-code coverage figure in this section is measured. V28 is the section that shows a measured one.",
+  "The Gates box judges thresholds kept in this browser; they are project policy and are not stored in the evidence.",
+  "The viewer's Overview does not draw the requirements × tests matrix. It is in the static report and in the terminal summary (see V12).",
+]
+
+[[feature.shot]]
+file = "v01-overview"
+fixture = "c-per-test"
+route = "#/overview"
+seed = {sl-mode = "projected", sl-gates = '{"min_lines":"80","min_outcomes":"90"}'}
+steps = [{wait = ".gate-verdict.bad"}]
+expect = ["breach(es) — this build would fail CI", "Structural coverage — Annex A table A-7", "What to test next"]
+caption = "The Overview of examples/c-per-test with floors on line coverage and branch outcomes set in the Gates box: the verdict, the command that gives the same verdict in CI, the A-7 tiles and the start of the worklist."
+
+[[feature.shot]]
+file = "v01-gates-empty"
+fixture = "c-per-test"
+route = "#/overview"
+steps = [{wait = ".gate-verdict"}]
+expect = ["No thresholds set, so nothing is being gated."]
+clip = ".gates"
+caption = "With no floor set the Gates box says that nothing is being gated. It does not report a pass."
+
+[[feature.shot]]
+file = "v01-coupling"
+fixture = "c-lib"
+route = "#/overview"
+steps = [{scroll = "h2:has-text('Stack — deepest chains')"}]
+expect = ["Data coupling — globals and their accessors (A-7 obj 8)", "g_state"]
+caption = "Further down the same page on examples/c-lib: the deepest stack chains and the data-coupling table, with the readers and writers of each global."
+
+# ─────────────────────────────── V02 ────────────────────────────────────────
+
+[[feature]]
+id = "V02"
+issue = 174
+group = "evidence"
+title = "Control-flow graph with coverage overlay"
+status = "captured"
+fixtures = ["c"]
+claim = """
+Each function's control-flow graph is built from its object code, not its source: one box per basic block, coloured by coverage, and each conditional edge labelled with the machine condition that takes it — an unconditional edge carries none, except the ↺ that marks a loop's back edge. Hovering a block marks the source lines it \
+came from; hovering a source line marks its blocks. `clamp_altitude` in \
+`examples/c` is {{c.fn.clamp_altitude.blocks}} blocks and \
+{{c.fn.clamp_altitude.instructions}} instructions at `-O0`."""
+limits = [
+  "The colours are projected from source coverage through the DWARF line table unless a trace was imported: green means \"implied by source coverage\", not \"executed\". The overlay control above the source names the one that is selected, and since #209 the bar at the foot of the page names it too.",
+  "The viewer opens with coverage colouring off (\"No coverage\") until an overlay is chosen, and then on the one this browser remembers; the screenshots below have Projected selected.",
+]
+
+[[feature.shot]]
+file = "v02-flow"
+route = "#/fn/{fn:clamp_altitude}/flow"
+seed = {sl-mode = "projected"}
+steps = [{wait = ".graph-wrap svg g.node"}, {hover = ".graph-wrap svg g.node", nth = 2}]
+expect = ["clamp_altitude", "Projected, not measured"]
+caption = "clamp_altitude in examples/c: the object-code control-flow graph in Projected mode, with one block hovered and the source line it came from marked on the right."
+
+[[feature.shot]]
+file = "v02-flow-mcdc"
+route = "#/fn/{fn:mode_permits_engage}/flow"
+seed = {sl-mode = "projected"}
+steps = [{wait = ".graph-wrap svg g.node"}]
+expect = ["mode_permits_engage"]
+clip = [".pane >> nth=0"]
+caption = "mode_permits_engage, the {{c.conditionsTotal}}-condition decision at `demo.c:23`: each conditional edge carries the machine condition that takes it."
+
+# ─────────────────────────────── V03 ────────────────────────────────────────
+
+[[feature]]
+id = "V03"
+issue = 175
+group = "evidence"
+title = "Expandable call graph"
+status = "captured"
+fixtures = ["c-callgraph", "rust"]
+claim = """
+Callers and callees grow in place, one click at a time. Recursion and mutual \
+recursion link back to the node already drawn instead of repeating it; an \
+indirect call shows its candidate targets labelled as candidates; a call to a \
+symbol whose object code is not in the evidence is marked external and cannot \
+be opened. `examples/c-callgraph` ({{c-callgraph.functions}} functions) has one \
+of each. Past a cap on how many neighbours a node draws in one direction, the \
+rest are counted on a "+N more" control that reveals them; `demo::main` in \
+`examples/rust` calls more functions than the cap."""
+limits = [
+  "A path reached only through a candidate is a hypothesis and is drawn as one: the candidate set of an indirect call comes from address-taken analysis, not from an observed call.",
+  "At -O1 the optimiser inlines the call chain and leaves nothing to expand, which is why `examples/c-callgraph` is built at -O0; an inlined or folded call is drawn but cannot be expanded.",
+  "The cap is fixed in the viewer, not configurable, and each click on \"+N more\" reveals another batch of the same size.",
+]
+
+[[feature.shot]]
+file = "v03-calls"
+viewport = [2560, 800]
+route = "#/fn/{fn:main}/calls"
+seed = {sl-mode = "projected"}
+steps = [
+  {wait = ".bf-node.can-open"},
+  {click = ".bf-node.can-open:has-text('stage_one')"},
+  {click = ".bf-node.can-open:has-text('stage_two')"},
+  {click = ".bf-node.can-open:has-text('dispatch')"},
+  {click = ".bf-node.can-open:has-text('ping')"},
+  {click = ".bf-node.can-open:has-text('pong')"},
+  {click = ".bf-node.can-open:has-text('countdown')"},
+  {pause = 300},
+  {drag = [400, 700, 330, 660]},
+  {pause = 200},
+]
+expect = ["stage_three", "reached only through a candidate — a hypothesis, not a measured path"]
+clip = [".pane >> nth=0"]
+caption = "main in examples/c-callgraph with its callees expanded: the stage_one → stage_two → stage_three chain, dispatch with its indirect-call candidates drawn dashed and counted in the header as a hypothesis, countdown linking back to itself, pong linking back to ping, and printf marked as outside the covered source set."
+
+[[feature.shot]]
+file = "v03-capped"
+viewport = [2560, 900]
+evidence = "examples/rust/build/evidence.json"
+route = "#/fn/{fn:demo::main}/calls"
+seed = {sl-mode = "projected"}
+steps = [{wait = ".bf-node text.capped"}]
+expect = ["more…"]
+clip = [".pane >> nth=0"]
+caption = "demo::main in examples/rust calls more functions than the cap: those past it are counted on the focus node's \"+N more\" control, which reveals them."
+
+# ─────────────────────────────── V04 ────────────────────────────────────────
+
+[[feature]]
+id = "V04"
+issue = 176
+group = "evidence"
+title = "Object-code view"
+status = "captured"
+fixtures = ["c", "cpp"]
+claim = """
+The disassembly of a function, interleaved with the source lines it came from, \
+with a status per instruction. Instructions the compiler added on its own \
+account are marked by origin — `examples/c` has \
+{{c.instructionsCompilerGenerated}} of {{c.instructionsTotal}} across \
+{{c.generatedOrigins}} origins (prologue, epilogue, stack protector, `line-0`) — \
+and an instruction that is not one of them shows the tag of its source line where the enclosing function tags that line, otherwise the function-level tags of the callee for code inlined from another function, otherwise the enclosing function's function-level tags. Where the tags it takes are empty the instruction shows none: the instructions of an untagged function, and code inlined from an untagged function even inside a tagged one. A compiler-generated instruction \
+shows none either way. C++ symbols are shown demangled."""
+limits = [
+  "The disassembly is llvm-objdump's. butterfly classifies and annotates it; it does not re-derive it, and llvm-objdump is not a qualified tool.",
+  "Instruction status is projected from source coverage unless a trace was imported: from the source line's count, or, for a block whose borrowed line does not describe it, by branch-outcome inference.",
+  "The source row above an instruction that came from another file -- code inlined from a header -- is named with that file, but its colour, count and line tags are read from the same line number of the function's own file, and so are the instruction's line tags (#317). It was found by reading the code and has not been reproduced on an example.",
+]
+
+[[feature.shot]]
+file = "v04-object"
+fixture = "c"
+route = "#/fn/{fn:checksum}/object"
+seed = {sl-mode = "projected"}
+steps = [{wait = "table.obj tr.i"}, {hover = "table.src tr[data-line='46'] td.ln"}]
+expect = ["checksum", "LLR-CRC-004"]
+caption = "checksum in examples/c: disassembly grouped by block and source line, compiler-generated instructions marked, requirement tags per instruction, and the instructions of the hovered source line highlighted."
+
+[[feature.shot]]
+file = "v04-object-cpp"
+fixture = "cpp"
+route = "#/overview"
+seed = {sl-mode = "projected"}
+steps = [{scroll = "h2:has-text('Functions')"}]
+expect = ["flight::checksum(unsigned char const*, unsigned int)"]
+clip = ["h2:has-text('Functions')", ".overview .scroll-x"]
+caption = "The function table of examples/cpp: C++ symbols are listed demangled, with namespaces and parameter types."
+
+# ─────────────────────────────── V05 ────────────────────────────────────────
+
+[[feature]]
+id = "V05"
+issue = 177
+group = "evidence"
+title = "Gaps and their resolutions"
+status = "captured"
+fixtures = ["c"]
+claim = """
+Inside an analysed function, butterfly records a gap wherever one of its checks finds that source coverage cannot describe the object code — code with no source line, a branch or decision the object code and the source do not share, a call outside the covered source set, and the other kinds the Overview lists — classified by kind: `examples/c` has {{c.gapsTotal}} across {{c.gapKinds}} kinds. A gap is a finding for a human. A \
+reviewer records a resolution — a DO-178C §6.4.4.3 category or an analysis under §6.4.4.2.b, a justification, reviewer and date — which is validated and written to a sidecar file, never into the evidence."""
+limits = [
+  "A gap is never a verdict: the tool does not decide whether one is acceptable.",
+  "\"Inside an analysed function\" is the boundary, and it matters. A text symbol butterfly cannot attribute to a coverage function — same-named statics, or a copy belonging to another translation unit — gets no object view and no gaps at all; its object code is reported as an image finding, on the Overview and in the static report, saying it \"is attributed to none of them and is missing from every object-code total\". Read the findings as well as the gaps.",
+  "A resolution is human input. It is validated (known key, category, non-empty justification), not verified: butterfly cannot tell whether the justification is true.",
+  "Resolutions live in a sidecar that the project must keep under configuration management alongside the evidence.",
+]
+
+[[feature.shot]]
+file = "v05-gaps-dialog"
+isolate = true
+route = "#/fn/{fn:phase_name}/gaps"
+seed = {sl-mode = "projected", sl-author = "reviewer"}
+steps = [
+  {wait = ".gaps .gap"},
+  {click = ".gaps .gap .act button"},
+  {wait = "#modal .dialog"},
+  {fill = "#modal textarea", value = "EXAMPLE TEXT typed by the showcase script to show the dialog. It is not a review decision."},
+]
+expect = ["Resolve coverage gap", "DO-178C 6.4.4.3 category"]
+caption = "phase_name in examples/c: the Gaps tab, with the resolution dialog open on one gap. The dialog says where the resolution is stored."
+
+[[feature.shot]]
+file = "v05-gaps-resolved"
+isolate = true
+route = "#/fn/{fn:phase_name}/gaps"
+seed = {sl-mode = "projected", sl-author = "reviewer"}
+steps = [
+  {wait = ".gaps .gap"},
+  {click = ".gaps .gap .act button"},
+  {fill = "#modal textarea", value = "EXAMPLE TEXT typed by the showcase script to show the dialog. It is not a review decision."},
+  {click = "#modal button.primary"},
+  {wait = ".gaps .gap .act button:has-text('Edit')"},
+]
+expect = ["Edit"]
+clip = [".pane >> nth=0"]
+caption = "The same tab after saving: the gap shows its recorded resolution, and the unresolved count at the top of the tab has gone down by one."
+
+# ─────────────────────────────── V06 ────────────────────────────────────────
+
+[[feature]]
+id = "V06"
+issue = 178
+group = "evidence"
+title = "MC/DC"
+status = "captured"
+fixtures = ["c"]
+claim = """
+For each decision: its conditions, how often each was true and false, and \
+whether each condition's independence was shown. The decision at `demo.c:23` \
+in `examples/c` has {{c.conditionsTotal}} conditions, of which \
+{{c.conditionsProven}} are proven; for the one that is not, the tab says which \
+input is missing. With an llvm-cov that exports test vectors the tab also lists the recorded vectors and, for each condition a pair of executed vectors isolates, that pair."""
+limits = [
+  "Needs upstream LLVM/clang ≥ 18 with `-fcoverage-mcdc`. Apple clang numbers itself separately from upstream, so its version is not a guide: the compiler that produced the MC/DC data on this page ({{c.compiler}}) writes the LLVM 18 MC/DC record layout.",
+  "An export in the LLVM 18 MC/DC record layout carries no decision outcome counts and no test vectors: the truth table is empty and the evidence says so in a caveat. Independence per condition is still exact. That is the state captured on this host.",
+  "GCC's -fcondition-coverage is not MC/DC and is not presented as MC/DC.",
+  "Rust has no MC/DC: nightly rustc accepts `-Zcoverage-options=branch|condition` but rejects `mcdc`, so no Rust build here produces MC/DC records and none are inferred. The tab has no Rust-specific message, and does not name the toolchain as the reason: a Rust function's decision list is simply empty, so the tab shows the generic \"Branch regions without MC/DC records\" table, or \"No decisions in this function.\" when the function has no branch regions either.",
+]
+
+[[feature.shot]]
+file = "v06-mcdc"
+route = "#/fn/{fn:mode_permits_engage}/mcdc"
+seed = {sl-mode = "projected"}
+steps = [{wait = ".mcdc .dec"}]
+expect = ["MC/DC not achieved ({{c.conditionsProven}}/{{c.conditionsTotal}})", "L23", "speed_ok — Not proven."]
+caption = "mode_permits_engage in examples/c: {{c.conditionsProven}} of {{c.conditionsTotal}} conditions proven, and the sentence that says which input would prove the remaining one."
+
+[[feature.shot]]
+file = "v06-mcdc-vectors"
+route = "#/fn/{fn:mode_permits_engage}/mcdc"
+requires = "c.mcdcVectors"
+requires_reason = "this host's compiler ({{c.compiler}}) writes the LLVM 18 MC/DC record layout, which carries no test vectors, so there is no executed-vector table to show. An llvm-cov 19 or newer exports them."
+seed = {sl-mode = "projected"}
+steps = [{wait = ".mcdc .dec table.tt"}]
+expect = ["Condition vectors", "speed_ok"]
+clip = [".mcdc"]
+caption = "The executed condition vectors and the independence pairs for the same decision."
+
+# ─────────────────────────────── V07 ────────────────────────────────────────
+
+[[feature]]
+id = "V07"
+issue = 179
+group = "evidence"
+title = "Stack analysis"
+status = "captured"
+fixtures = ["c-lib"]
+claim = """
+For each function: its own frame, the worst-case stack below it and the chain \
+of calls that reaches that worst case. Recursion, indirect calls, dynamic \
+frames, frames of undetermined size, call chains deeper than the analysable \
+depth and totals that overflow make a bound unknowable, and the figure is then \
+marked not bounded with \
+the reason rather than passed off as a worst case — the number beside it is \
+the deepest chain butterfly could actually resolve, not a bound. Of the figures marked not bounded, only recursion with nothing else below it has no number at all; the panel shows ∞ in its place. In \
+`examples/c-lib`, `main` has a {{c-lib.fn.main.stack.frame}}-byte frame and a \
+deepest known chain of {{c-lib.fn.main.stack.worstCase}} bytes \
+({{c-lib.fn.main.stack.chain}}), reported as not bounded because of \
+{{c-lib.fn.main.stack.reason}}."""
+limits = [
+  "Frame sizes come from a `.stack_sizes` section (`-fstack-size-section`, `-Zemit-stack-sizes`) where the build emits one, then from the compiler's `.su` files (`-fstack-usage`), and from prologue analysis — an estimate — where neither is there. The panel names the source in the note under the figures. No example here passes a section flag, so these frames are `.su` for C and C++ and prologue estimates for Rust; that is a property of the examples, not of the tool.",
+  "An unbounded result is a finding for the reviewer, not a failure of the build.",
+  "The figure is a static worst case over the call graph; it says nothing about interrupts or other stacks, and the note inside the screenshot above now says the same. What that note lists — indirect calls, recursion, dynamic frames (alloca / VLA), frames of undetermined size, call chains deeper than the analysable depth and totals that overflow — is exactly the set of reasons `crates/ingest/src/stack.rs` can attach to a figure, and a test compares the note against the code in both directions: a category the code cannot produce fails it, and so does a reason the note does not name (#234, #318).",
+]
+
+[[feature.shot]]
+file = "v07-stack"
+route = "#/fn/{fn:main}/stack"
+seed = {sl-mode = "projected"}
+steps = [{wait = ".pane-body .stack"}]
+expect = ["sched_run"]
+caption = "main in examples/c-lib: own frame, worst case, the deepest chain, and the reason the bound is not closed."
+
+# ─────────────────────────────── V08 ────────────────────────────────────────
+
+[[feature]]
+id = "V08"
+issue = 180
+group = "evidence"
+title = "Data coupling"
+status = "captured"
+fixtures = ["c-lib", "cpp-lib"]
+claim = """
+Which functions read, write or take the address of each global, across \
+translation units (Table A-7 objective 8). In `examples/c-lib`, `g_state` is \
+written by {{c-lib.global.g_state.writers}} functions in \
+{{c-lib.global.g_state.writerFiles}} source files; `examples/cpp-lib` \
+references {{cpp-lib.globals}} globals."""
+limits = [
+  "References are read from the linked image. An unlinked object under-reports coupling, because its references are still relocations; the evidence carries a caveat when that is the case.",
+  "A global reached only through a pointer is attributed to whoever took its address, not to whoever dereferences it.",
+]
+
+[[feature.shot]]
+file = "v08-data"
+fixture = "c-lib"
+route = "#/fn/{fn:state_raise_fault}/data"
+seed = {sl-mode = "projected"}
+steps = [{wait = ".pane-body"}]
+expect = ["g_state"]
+caption = "state_raise_fault in examples/c-lib: the globals this function touches, how, and who else touches them."
+
+[[feature.shot]]
+file = "v08-coupling-cpp"
+fixture = "cpp-lib"
+route = "#/overview"
+steps = [{scroll = "h2:has-text('Data coupling')"}]
+expect = ["Data coupling — globals and their accessors (A-7 obj 8)"]
+caption = "The Overview coupling table of examples/cpp-lib: each global with its readers, writers and address-takers."
+
+# ─────────────────────────────── V09 ────────────────────────────────────────
+
+[[feature]]
+id = "V09"
+issue = 181
+group = "evidence"
+title = "Variables panel"
+status = "captured"
+fixtures = ["c", "vars-x86_64"]
+claim = """
+Parameters and locals from DWARF, and every instruction that touches each \
+one's frame slot, numbered in static instruction order. Hovering a variable \
+marks its declaration and every line that touches it. In `checksum`, `acc` is \
+touched at {{c.fn.checksum.variables.acc.accesses}} sites \
+(`{{c.fn.checksum.variables.acc.sites}}`: line, then r/w), and the loop \
+counter `i` at lines that are not in ascending order \
+(`{{c.fn.checksum.variables.i.sites}}`). The marking is optional: the \
+Variable marks button turns it off."""
+limits = [
+  "AArch64 at -O0 only. On any other architecture, and for a variable the optimiser kept in a register, the list is empty and the reason is shown.",
+  "The numbering is STATIC instruction order — the order of the instructions in the function's object code. It is not execution order: a site in a loop is listed once, and a site in a branch that never ran is still numbered.",
+  "An empty list is not one statement, and the panel says which it is. With a reason it reads \"not attributed — …\" and means \"could not tell\", and the reason says why: for example the optimiser kept the variable in a register, the image is not AArch64, its storage changes across the function, an instruction writes back the frame base register, or the debug info gives it no size. With no reason it reads \"no instruction in this function touches it\", which does assert that nothing in this function's object code reaches the slot. `crates/ingest/tests/vars.rs` holds those readings apart by name.",
+  "Accesses made through a pointer to the variable are not tracked; the panel says so on the variable concerned.",
+]
+
+[[feature.shot]]
+file = "v09-vars-acc"
+fixture = "c"
+route = "#/fn/{fn:checksum}/variables"
+requires = "c.isAarch64"
+requires_reason = "frame-slot accesses are read for AArch64 only, and examples/c built here is {{c.arch}}. The panel lists each variable with that reason, as in the last screenshot of this section."
+seed = {sl-mode = "projected"}
+steps = [{wait = "table.vars tr.frow"}, {hover = "table.vars tr.frow:has(td.mono:text-is('acc')) td.mono >> nth=0"}, {wait = ".src tr.vuse"}]
+expect = ["Parameters and locals from DWARF", "2R", "3W"]
+caption = "checksum in examples/c (AArch64, -O0) with acc hovered. Its sites, as line and r/w in static instruction order, are {{c.fn.checksum.variables.acc.sites}}: one line carries both the second touch, a read, and the third, a write, and the source pane shows both badges on it."
+
+[[feature.shot]]
+file = "v09-vars-i"
+fixture = "c"
+route = "#/fn/{fn:checksum}/variables"
+requires = "c.isAarch64"
+requires_reason = "frame-slot accesses are read for AArch64 only, and examples/c built here is {{c.arch}}."
+seed = {sl-mode = "projected"}
+steps = [{wait = "table.vars tr.frow"}, {hover = "table.vars tr.frow:has(td.mono:text-is('i')) td.mono >> nth=0"}, {wait = ".src tr.vuse"}]
+expect = ["accesses, in static instruction order"]
+clip = [".panes"]
+caption = "The loop counter i hovered: its sites are {{c.fn.checksum.variables.i.sites}}. The line numbers do not ascend, because static instruction order follows the object code — not the source, and not the run."
+
+[[feature.shot]]
+file = "v09-vars-off"
+fixture = "c"
+route = "#/fn/{fn:checksum}/variables"
+requires = "c.isAarch64"
+requires_reason = "frame-slot accesses are read for AArch64 only, and examples/c built here is {{c.arch}}."
+seed = {sl-mode = "projected", sl-varmarks = "0"}
+steps = [{wait = "table.vars tr.frow"}, {hover = "table.vars tr.frow:has(td.mono:text-is('acc')) td.mono >> nth=0"}, {pause = 200}]
+expect = ["Marking in the source pane is off"]
+clip = [".panes"]
+caption = "Variable marks switched off: the same hover marks nothing in the source pane, and the panel says the marks are off."
+
+[[feature.shot]]
+file = "v09-vars-x86"
+fixture = "vars-x86_64"
+route = "#/fn/{fn:tally}/variables"
+seed = {sl-mode = "projected"}
+steps = [{wait = "table.vars tr.frow"}]
+expect = ["frame-slot accesses are read for aarch64; this image is x86_64"]
+clip = [".panes"]
+caption = "The unsupported-target state, from the hand-written x86-64 evidence of the browser check (ui/browser/checks/vars.cjs), not from a compiled program: every variable is still listed, none has accesses, and each carries the reason."
+
+# ─────────────────────────────── V10 ────────────────────────────────────────
+
+[[feature]]
+id = "V10"
+issue = 182
+group = "trace"
+title = "Change impact"
+status = "captured"
+fixtures = ["c"]
+facts = {c-changes = "target/showcase/changes/evidence.json"}
+claim = """
+`butterfly changes` reads the repository's history with `git log -L` over each \
+function's line range and records every commit and ticket that touched it, and \
+whether it added or modified it. From that it derives what must be \
+re-verified (DO-178C §12.1.1). Run on `examples/c` against this repository's own history, whose commit messages match none of the ticket patterns, every commit is reported as unticketed. When the evidence falls behind -- the repository has moved on, or an \
+analysed source differs from the text that was analysed -- the viewer says the \
+change history is stale, why, and what to re-run."""
+limits = [
+  "Derived from git history, and what the history has been through limits what can be seen. Only the shallow case is detected: `git rev-parse --is-shallow-repository`, which writes its own caveat into the evidence. A rebase or a squash cannot be told apart from an ordinary history after the fact, so every run instead carries a standing caveat saying that squashed or rebased history collapses tickets into whichever commit survived. Both live in the evidence; neither is printed by the command below, and of the history's own caveats the viewer's change-impact box shows only those about sources that are uncommitted, from another checkout, untracked, outside the repository or not walkable. The counts below are those of the clone the capture ran in.",
+  "A function's history is followed by line range, so a function moved between files starts a new history.",
+  "Deleted functions can be found only against a frozen baseline.",
+  "The obligations are advice on what to re-run. They do not reduce verification; claiming that they do would be a Criteria 2 use of the tool.",
+  "The stale banner below is made by editing a copy of the example's source after `butterfly changes` ran. A repository that has moved on since is reported the same way, as a commit count; that case is asserted in `crates/view/src/freshness.rs`, not photographed, because a capture cannot add commits to the repository it runs in.",
+]
+
+[[feature.cmd]]
+run = "mkdir -p target/showcase/changes && cp examples/c/build/evidence.json target/showcase/changes/evidence.json"
+exit = 0
+
+[[feature.cmd]]
+run = "butterfly changes target/showcase/changes/evidence.json"
+exit = 0
+show = true
+expect = ["history  :", "impact   :"]
+caption = "butterfly changes on examples/c, against this repository's own history."
+
+[[feature.shot]]
+file = "v10-changes"
+evidence = "target/showcase/changes/evidence.json"
+route = "#/fn/{fn:checksum}/changes"
+seed = {sl-mode = "projected"}
+steps = [{wait = ".pane-body"}]
+expect = ["checksum"]
+caption = "checksum in examples/c after butterfly changes: the commits that touched it and the re-verification obligations that follow."
+
+[[feature.shot]]
+file = "v10-changes-overview"
+evidence = "target/showcase/changes/evidence.json"
+route = "#/overview"
+steps = [{scroll = "h2:has-text('Change impact (12.1.1)')"}]
+expect = ["Change impact (12.1.1)", "unticketed"]
+caption = "The change-impact section of the Overview: commits, tickets and unticketed commits for the whole evidence file."
+
+[[feature.cmd]]
+run = "rm -rf target/showcase/stale && mkdir -p target/showcase/stale && cp examples/c/build.sh examples/c/demo.c examples/c/butterfly.toml target/showcase/stale/ && cp examples/llvm-env.sh examples/adapter.sh target/showcase/ && ./target/showcase/stale/build.sh && butterfly ingest target/showcase/stale/build --source-root target/showcase/stale -o target/showcase/stale/evidence.json && butterfly changes target/showcase/stale/evidence.json > /dev/null"
+exit = 0
+
+[[feature.cmd]]
+run = "echo '/* edited after the change history was read */' >> target/showcase/stale/demo.c"
+exit = 0
+show = true
+caption = "Edit the analysed source after `butterfly changes` has read the history."
+
+[[feature.shot]]
+file = "v10-stale"
+evidence = "target/showcase/stale/evidence.json"
+route = "#/overview"
+steps = [{scroll = "h2:has-text('Change impact (12.1.1)')"}]
+expect = ["Change history is stale", "differ on disk from the analysed text"]
+caption = "The Overview of the edited copy: the change history is stale, the reason names the file, and it says what to re-run. Git does not track the copy, so its change impact lists no commits of its own."
+
+# ─────────────────────────────── V11 ────────────────────────────────────────
+
+[[feature]]
+id = "V11"
+issue = 183
+group = "trace"
+title = "Requirement text beside the code"
+status = "captured"
+fixtures = ["c-per-test"]
+claim = """
+A `@satisfies` tag in the source shows the requirement's own text in place. The \
+text is fetched per requirement ID from a sidecar, `requirements.json`, so the \
+viewer never loads the whole requirements set. `butterfly requirements` writes \
+that sidecar from YAML, CSV or Markdown."""
+limits = [
+  "Requirements are filtered by the kind each entry declares, and the kinds accepted are configurable. An entry that declares a kind butterfly does not take is skipped and counted; an entry that declares none at all is taken at its word and read as a low-level requirement, whatever its ID suggests. So \"low-level only\" is what the document says, not something the tool can check.",
+  "The sidecar records each source document's SHA-256, and `butterfly serve` re-hashes the documents at startup: a readable document that has changed since the text was read is reported on the terminal serve was started from, not in the viewer. A document that has been deleted or moved away is skipped in silence; one that is still there but cannot be read is reported on the same terminal as not checked. It cannot tell whether the text is the approved revision.",
+  "A tag the sidecar has no statement for shows its ID with a note that its text is unavailable.",
+  "The CSV document below is the README's own example, and the Markdown document is the README's with LLR-LIM-001 added beside it; both are kept in support/showcase/ so the commands have something to read.",
+]
+
+[[feature.cmd]]
+run = "butterfly requirements examples/c-per-test/llr.yaml -o target/showcase/req-yaml.json"
+exit = 0
+show = true
+caption = "Requirement text read from YAML."
+
+[[feature.cmd]]
+run = "butterfly requirements support/showcase/llr.csv -o target/showcase/req-csv.json"
+exit = 0
+show = true
+caption = "The same requirement, LLR-LIM-001, read from CSV, in the README's slightly shorter wording of its statement."
+
+[[feature.cmd]]
+run = "butterfly requirements support/showcase/llr.md -o target/showcase/req-md.json"
+exit = 0
+show = true
+caption = "The same requirement, LLR-LIM-001, read from Markdown."
+
+[[feature.shot]]
+file = "v11-requirements"
+route = "#/fn/{fn:clamp_alt}/requirements"
+seed = {sl-mode = "projected"}
+steps = [
+  {wait = ".requirements-table[aria-busy='false']"},
+  {click = ".fn-head .req"},
+  {wait = "#req-panel.on"},
+  {move = [1100, 860]},
+  {pause = 300},
+]
+expect = ["LLR-LIM-001", "Requirement text"]
+caption = "clamp_alt in examples/c-per-test: the Requirements tab with the text of LLR-LIM-001, and the requirement panel pinned by a click — it stays open when the pointer moves away."
+
+# ─────────────────────────────── V12 ────────────────────────────────────────
+
+[[feature]]
+id = "V12"
+issue = 184
+group = "trace"
+title = "Requirements × tests, and the claims gate"
+status = "captured"
+fixtures = ["c-per-test"]
+claim = """
+With one coverage export per test, the evidence records which test exercised \
+which requirement's code (Table A-7 objectives 3 and 4): a requirement covered \
+by named tests, one implemented but reached by no test, and one with no code \
+at all each show as what they are. `butterfly claims` then compares the \
+requirements document's own traceability with what was measured, and exits 3 \
+where they disagree — in `examples/c-per-test`, on a claim that is wrong on \
+purpose."""
+limits = [
+  "Needs one coverage export per test. Without per-test data a test claim cannot be checked: `butterfly claims` says so on its first line, lists the claim as unchecked, counts its requirement as neither agreed nor disagreed, and `--json` names it under `notChecked`. An unchecked claim is not a disagreement, so the command still exits 0: a gate that must refuse unchecked claims has to read `notChecked`, not the exit status. The distinction was made in #233.",
+  "A test is judged against the lines a requirement claims, not against the function they sit in.",
+  "butterfly reports where the requirements document and the measurement disagree. It does not decide which of them is wrong, and it never edits the requirements document.",
+  "The matrix is drawn in the static report (§2) and printed by `butterfly summary`; the viewer's Overview has no matrix view.",
+]
+
+[[feature.cmd]]
+run = "butterfly summary examples/c-per-test/build/evidence.json"
+exit = 0
+show = true
+expect = ["NO TEST", "NO CODE"]
+caption = "The terminal summary of examples/c-per-test: each test with the number of functions it entered, and then each requirement with the tests that covered it — including one reached by no test and one with no code at all. The mapping printed is requirement to tests, not test to requirements."
+
+[[feature.cmd]]
+run = "butterfly claims examples/c-per-test/build/evidence.json --requirements examples/c-per-test/build/requirements.json"
+exit = 3
+show = true
+expect = ["test-does-not-reach", "LLR-LIM-002", "tag-not-in-document"]
+caption = "butterfly claims catches the deliberately wrong claim, and the source tags citing requirements the document leaves out on purpose, and exits 3."
+
+[[feature.cmd]]
+run = "butterfly report examples/c-per-test/build/evidence.json -o target/showcase/v12-report.html"
+exit = 0
+
+[[feature.shot]]
+file = "v12-matrix"
+page = "target/showcase/v12-report.html"
+route = ""
+steps = [{scroll = "h2:has-text('Requirements coverage')"}]
+expect = ["Requirements coverage (A-7 objectives 3 and 4)", "none — implemented, unverified", "no code"]
+clip = ["h2:has-text('Requirements coverage')", "h2:has-text('Requirements coverage') ~ table >> nth=0", "p:has-text('carry no requirement tag')"]
+caption = "§2 of the static report for examples/c-per-test: each requirement, the functions that implement it, the lines covered and the tests that covered them."
+
+# ─────────────────────────────── V13 ────────────────────────────────────────
+
+[[feature]]
+id = "V13"
+issue = 185
+group = "evidence"
+title = "File view"
+status = "captured"
+fixtures = ["c-lib"]
+claim = """
+A whole source file instead of one function: a coverage minimap, a gutter \
+showing how much object code each line produced, folding down to the findings \
+or to the uncovered lines only, a requirement lens that highlights the lines \
+tagged with the chosen requirement, and optional sticky function headers."""
+limits = [
+  "The same projection applies: line colour is source coverage; the density gutter counts instructions attributed to the line by the line table.",
+  "The lens marks the lines that carry the tag; it is not an analysis of what implements the requirement. A function-level `@satisfies` tags every line of the function body, closing brace and blank lines included, and an untagged helper that does the work is not marked.",
+  "Choosing a requirement marks the rows the view has already drawn, and opens folds from the top of the file only until the requirement's first tagged line is drawn, so a tagged line inside a fold that stays collapsed — as in the second shot below, where the file is folded to uncovered lines only — carries no highlight in the source until the fold is expanded, though the minimap marks it. Anything that re-draws the file with the lens already on, such as changing the fold or the function-header setting, pulls every tagged line out of the fold instead: the fold treats a lens tag as a finding.",
+]
+
+[[feature.shot]]
+file = "v13-file"
+route = "#/file/{file:util.c}"
+seed = {sl-mode = "projected", sl-fnhdr = "1"}
+steps = [{wait = "canvas.minimap"}, {click = "label:has-text('instructions / line') input"}, {pause = 200}]
+expect = ["util.c", "Requirement lens"]
+caption = "util.c in examples/c-lib: the functions and requirements of the file on the left; on the right the source with execution counts, the object-density gutter, function headers and the minimap."
+
+[[feature.shot]]
+file = "v13-file-uncovered"
+route = "#/file/{file:util.c}"
+seed = {sl-mode = "projected", sl-fnhdr = "1", sl-fold = "uncovered"}
+steps = [{wait = "canvas.minimap"}, {click = "table.mat .req:has-text('LLR-UTIL-001')"}, {pause = 300}]
+expect = ["util.c", "LLR-UTIL-001"]
+clip = [".panes"]
+caption = "The same file folded to uncovered and partly covered lines only, with the requirement lens on LLR-UTIL-001."
+
+# ─────────────────────────────── V14 ────────────────────────────────────────
+
+[[feature]]
+id = "V14"
+issue = 186
+group = "builds"
+title = "Comparing optimisation levels"
+status = "captured"
+fixtures = ["c-variants"]
+claim = """
+`butterfly build` compiles the same sources at several optimisation levels \
+({{c-variants.variantNames}} here) against one instrumented run, and the \
+Compare page sets them side by side. The source coverage is the same in every \
+variant — it is one coverage export — and the object code is not: \
+`clamp_altitude` is {{c-variants.variant.O0.fn.clamp_altitude.blocks}} blocks \
+with {{c-variants.variant.O0.fn.clamp_altitude.gaps}} gaps at `-O0`, and \
+{{c-variants.variant.O2.fn.clamp_altitude.blocks}} block with \
+{{c-variants.variant.O2.fn.clamp_altitude.gaps}} predicated-decision gaps at \
+`-O2`, where neither source decision has a conditional branch that can be \
+located in the object code."""
+limits = [
+  "Exploratory builds are stamped EXPLORATORY BUILD in provenance and in the caveat bar, and are never certification evidence. The object code that matters is the one your configuration-controlled build produced, ingested with `butterfly ingest`.",
+  "A tool that produced the analysed object code would be a Criteria 1 tool. That is why this output must never be shipped or cited.",
+  "The numbers are those of the compiler on the capturing host; another compiler or target will optimise differently.",
+]
+
+[[feature.shot]]
+file = "v14-compare"
+viewport = [2040, 760]
+clip = ["#main"]
+route = "#/compare"
+steps = [{wait = "h2:has-text('Per function')"}]
+expect = ["Compare build variants", "clamp_altitude"]
+caption = "The Compare page for the {{c-variants.variants}} variants of examples/c: per function, instructions, blocks, v(G), uncovered instructions, gaps and stack at each level, with what the optimiser changed highlighted."
+
+[[feature.shot]]
+file = "v14-o2-gaps"
+route = "#/fn/{fn:clamp_altitude}/gaps"
+seed = {sl-mode = "projected", sl-variant = "O2"}
+steps = [{wait = ".gaps .gap"}]
+expect = ["predicated"]
+caption = "`clamp_altitude` in the `-O2` variant: the Gaps tab reports {{c-variants.variant.O2.fn.clamp_altitude.gaps}} predicated-decision gaps — one for each source decision — with the reason, and the variant chips under the header give instructions, blocks and gaps at each level."
+
+# ─────────────────────────────── V15 ────────────────────────────────────────
+
+[[feature]]
+id = "V15"
+issue = 187
+group = "builds"
+title = "The static report"
+status = "captured"
+fixtures = ["c-per-test"]
+claim = """
+`butterfly report` writes one self-contained HTML file with no scripts, meant to be read away from the tool and printed: a summary against Table A-7, the requirements coverage, provenance, every function, the gaps with any recorded resolutions, the source-to-object review sample, the caveats and, where the evidence carries them, dead-code candidates and stack usage. It carries the text of a requirement the code reaches whenever a statement for it was supplied — `butterfly report` reads the file named by `--requirements`, else `<stem>.requirements.json` or `requirements.json` beside the evidence, in that order — because a reader of the file cannot fetch it. A tag with no statement is named \
+without one, and evidence with no requirements sidecar beside it yields a \
+report with no requirement text at all."""
+limits = [
+  "The report carries the same projection caveat as the viewer: its object-code coverage is projected, and a measured figure appears beside the projected one only when a trace was imported.",
+  "It is a rendering of the evidence, the resolutions sidecar and the requirements sidecar. Whether it is acceptable as Software Verification Results (DO-178C §11.14) is for the project and its authority to decide; butterfly is not qualified.",
+  "It embeds the path of every input the evidence was ingested from — absolute for the sources, because that is the form the coverage export records — together with each input's SHA-256, the requirement IDs handed to ingest, and the text of every requirement statement it quotes from the requirements sidecar. It does not carry the build host name, and it does not carry source text: the evidence file it renders carries both, and V22 is the limit for that. Redact the paths before sending it outside your organisation.",
+]
+
+[[feature.cmd]]
+run = "butterfly report examples/c-per-test/build/evidence.json -o target/showcase/v15-report.html"
+exit = 0
+show = true
+caption = "Write the report for examples/c-per-test."
+
+[[feature.cmd]]
+run = "grep -c '<script' target/showcase/v15-report.html"
+exit = 1
+show = true
+caption = "The file contains no script element: grep counts none, and so exits 1."
+
+[[feature.shot]]
+file = "v15-report-summary"
+page = "target/showcase/v15-report.html"
+route = ""
+expect = ["Summary (Annex A table A-7)"]
+caption = "The top of the report for examples/c-per-test: the caveats as banners, the summary against Table A-7, and the start of the requirements coverage with each statement quoted."
+
+[[feature.shot]]
+file = "v15-report-gaps"
+page = "target/showcase/v15-report.html"
+route = ""
+steps = [{scroll = "h2:has-text('Object-code gaps and resolutions')"}]
+expect = ["Object-code gaps and resolutions"]
+caption = "The gaps section: a count of each kind, then each gap with its kind, address and source line, helper calls grouped by callee, and a resolution column that reads unresolved throughout because no reviewer recorded one here."
+
+[[feature.shot]]
+file = "v15-report-caveats"
+page = "target/showcase/v15-report.html"
+route = ""
+steps = [{scroll = "h2:has-text('Caveats')", block = "center"}]
+expect = ["Caveats", "PROJECTED"]
+caption = "The end of the report: the caveats, beginning with the statement that object-code coverage is projected."
+
+# ─────────────────────────────── V16 ────────────────────────────────────────
+
+[[feature]]
+id = "V16"
+issue = 188
+group = "automation"
+title = "Gates"
+status = "captured"
+fixtures = ["c"]
+claim = """
+`butterfly check` turns the evidence into an exit status for CI: floors on \
+line, outcome and MC/DC coverage, a ceiling on unresolved gaps, and \
+no-regression against a prior evidence file. It prints one line per breach \
+and exits 3; with no breach it exits 0. The viewer's Gates box gives the same \
+verdict by calling the same function, and prints the equivalent command."""
+limits = [
+  "Only --min-lines and --min-outcomes read the evidence alone. --min-mcdc and --max-unresolved-gaps also count the resolutions a reviewer recorded, so their verdict depends on the sidecar they are given.",
+  "--min-lines is line coverage: a proxy for statement coverage, not proof of it.",
+  "A floor over data the evidence does not carry — --min-mcdc against a build without -fcoverage-mcdc — is a breach, not a pass.",
+  "--no-resolutions applies to the --no-regression prior as well, so both sides of the comparison are judged under the same empty set of reviews. Before #213 the prior was judged with its reviews even under --no-resolutions, which reported a regression that was an artefact of the flag rather than of the build.",
+  "An exit status is an input to a verification review. It does not replace one.",
+  "With no floor set the Gates box gates nothing, and says so rather than reporting a pass — an empty gate is not a green one. That state is captured in V01, whose Overview shot pair shows the box both empty and breaching; this section shows only the breaching state (#188).",
+]
+
+[[feature.cmd]]
+run = "butterfly check examples/c/build/evidence.json --no-resolutions --min-lines 75 --min-outcomes 70 --max-unresolved-gaps 40 --no-regression examples/c/build/evidence.json"
+exit = 0
+show = true
+caption = """
+The same floors this repository's own CI applies to `examples/c`, with the \
+resolutions sidecar explicitly disabled so that the run does not depend on \
+one (CI passes no `--no-resolutions`): no breach, nothing printed, exit 0. \
+It is `--no-resolutions` that makes it silent — without that flag a passing \
+run still prints a note saying no sidecar was found, because the gap ceiling \
+and the MC/DC floor are judged against one (#213)."""
+
+[[feature.cmd]]
+run = "butterfly check examples/c/build/evidence.json --no-resolutions --min-lines 80 --min-outcomes 100 --min-mcdc 100 --max-unresolved-gaps 0"
+exit = 3
+show = true
+expect = ["BREACH  outcomes", "BREACH  mcdc", "BREACH  unresolved-gaps"]
+caption = "Tighter floors on the same evidence: a breach on outcomes, on MC/DC and on unresolved gaps, exit 3."
+
+[[feature.shot]]
+file = "v16-gates"
+route = "#/overview"
+seed = {sl-gates = '{"min_lines":"80","min_outcomes":"100","min_mcdc":"100","max_unresolved_gaps":"0"}'}
+steps = [{wait = ".gate-verdict.bad"}]
+# The point of the section is that the box and the command agree, so the
+# assertion is that agreement and not a loose substring: the same three
+# breach kinds, and the command the box prints, whole. The box is served
+# with no resolutions sidecar, which is the state `--no-resolutions` puts
+# `check` in -- and the command the box prints says so itself.
+expect = [
+  "3 breach(es) — this build would fail CI.",
+  "outcomes",
+  "mcdc",
+  "unresolved-gaps",
+  "butterfly check examples/c/build/evidence.json --no-resolutions --min-lines 80 --min-outcomes 100 --min-mcdc 100 --max-unresolved-gaps 0",
+]
+clip = [".gates"]
+caption = "The Gates box holding every floor the tighter command below sets, over the same evidence and with no resolutions sidecar: the same breaches, kind for kind, and — character for character — the command that reproduces them in CI."
+
+# ─────────────────────────────── V17 ────────────────────────────────────────
+
+[[feature]]
+id = "V17"
+issue = 189
+group = "automation"
+title = "butterfly doctor"
+status = "captured"
+fixtures = ["c"]
+claim = """
+A preflight for a build directory. The mistakes that ruin coverage evidence raise no error — they produce evidence that looks complete and is wrong — so `doctor` looks for them before ingest and grades each as WRONG, WEAKER or a note. Beside each WRONG or WEAKER finding it names the fix, keyed by whatever causes the mistake: `build.sh`, make, CMake and Bazel where the build system is at fault — as in both such findings below — and clang, gcc or a fix that applies anywhere for most of the rest; a note's fix is printed only with `--verbose`. It \
+exits 3 when something would make the evidence wrong."""
+limits = [
+  "Advisory: it inspects the build directory, not the tool's own environment, and a clean run is not evidence that the build is correct.",
+  "The module names the mistakes it exists to catch, and the broken directory below trips more than one of them: only an instrumented binary (WRONG) and no `.su` files (WEAKER), plus a note for the missing `build-info.txt`. The gcov and MC/DC-flag checks are covered by the Rust tests and are not shown here.",
+]
+
+[[feature.cmd]]
+run = "butterfly doctor examples/c/build"
+exit = 0
+show = true
+caption = "A clean build directory: nothing to fix, one note."
+
+[[feature.cmd]]
+run = "rm -rf target/showcase/broken && mkdir -p target/showcase/broken && cp examples/c/build/coverage.json examples/c/build/demo-instr target/showcase/broken/"
+exit = 0
+
+[[feature.cmd]]
+run = "butterfly doctor target/showcase/broken"
+exit = 3
+show = true
+expect = ["WRONG     every object here is instrumented"]
+caption = "A directory holding the coverage export and, as its only object, the instrumented binary: WRONG, with the fix per build system, exit 3."
+
+# ─────────────────────────────── V18 ────────────────────────────────────────
+
+[[feature]]
+id = "V18"
+issue = 190
+group = "automation"
+title = "One command: butterfly run"
+status = "captured"
+fixtures = ["c"]
+claim = """
+`butterfly run` does build, doctor, ingest and report in one step — and serves \
+the result unless told not to — then prints a phase report saying what \
+happened in each and what is worth knowing."""
+limits = [
+  "It runs YOUR build script, so it is trusted-input by design: run it only on a project you trust. The viewer itself never gets an endpoint that runs a toolchain.",
+  "If doctor finds something that would make the evidence wrong, run stops unless --force is given.",
+]
+
+[[feature.cmd]]
+run = "butterfly run examples/c --no-serve"
+exit = 0
+show = true
+expect = ["[1/4] build", "[4/4] report", "summary"]
+caption = "Each phase on examples/c, and the summary at the end."
+
+# ─────────────────────────────── V19 ────────────────────────────────────────
+
+[[feature]]
+id = "V19"
+issue = 191
+group = "automation"
+title = "Build-system integration"
+status = "captured"
+fixtures = ["c-lib"]
+claim = """
+Worked CMake, make and Bazel integrations build `examples/c-lib`'s sources, and \
+`scripts/verify-build-systems.sh` checks that each gives the same evidence as \
+the library's own `build.sh` on its summary counts -- files, functions, symbols, \
+lines and branch outcomes covered and in total, and gaps. It also takes one stack-usage \
+file away from each system's output and requires `butterfly ingest` to refuse \
+it, and builds the Bazel target without `-c dbg` and without its LLVM directory \
+and requires the rule itself to refuse. A shell build template you copy and own, `templates/build.sh`, has its own test, `templates/test.sh`: it builds a scratch project cleanly, then requires the build to fail when `dsymutil` fails (on macOS) and to refuse sources that share a basename."""
+limits = [
+  "The comparison is of those counts, not of the evidence files byte for byte: link order is each build system's own business and moves symbol addresses.",
+  "A build system that is not installed is skipped, and the script says so; the capture of this page ran the ones its host has, and the script's output below names each one it ran.",
+  "Hosted CI does not run it: a Bazel build there costs more than the run it would protect. `scripts/ci-local.sh` runs it on every local pass.",
+  "The Bazel rule needs --spawn_strategy=local, and checks for it rather than working around it (examples/build-systems/bazel/README.md).",
+]
+
+[[feature.cmd]]
+run = "./scripts/verify-build-systems.sh"
+exit = 0
+show = true
+expect = ["ALL INSTALLED BUILD SYSTEMS MATCH c-lib", "(one .su removed)"]
+caption = "The library's own build, then each build system compared against it, each followed by the altered builds it must refuse."
+
+[[feature.cmd]]
+run = "./templates/test.sh"
+exit = 0
+show = true
+caption = "The build template's failure paths, exercised for real."
+
+# ─────────────────────────────── V20 ────────────────────────────────────────
+
+[[feature]]
+id = "V20"
+issue = 192
+group = "builds"
+title = "Analysis baseline"
+status = "captured"
+fixtures = ["c"]
+facts = {baseline-before = "target/showcase/baseline/before.json", baseline-after = "target/showcase/baseline/after.json"}
+claim = """
+`butterfly baseline` freezes the compiler, its flags, the source constructs in \
+use and a per-function fingerprint of the normalised object code. An ingest \
+given the baseline with `--baseline` is compared against it, and a \
+source-to-object review recorded on a function that has changed since is \
+marked STALE. A `butterfly-baseline.json` in the directory the ingest reads is \
+found without the flag (#238); with neither, the evidence says `baseline: \
+null` and marks nothing. \
+Changing one constant in `checksum` — the CRC polynomial — leaves it at \
+{{baseline-after.fn.checksum.instructions}} instructions and \
+{{baseline-after.fn.checksum.blocks}} blocks, exactly as before \
+({{baseline-before.fn.checksum.instructions}} and \
+{{baseline-before.fn.checksum.blocks}}). The comparison reports it as changed \
+because its source hash changed, and the last command below shows that its \
+object-code fingerprint changed as well: counts alone are not a fingerprint."""
+limits = [
+  "Load addresses are normalised, so a rebuild at a different address compares equal; immediates are not, because a changed constant is a changed program.",
+  "The baseline records that something changed, not whether the change is acceptable. Re-review is the project's decision.",
+  "It carries no coverage figures; regression of coverage is `butterfly check --no-regression` (V16).",
+  "The source-changed and object-changed lists are exclusive (`crates/ingest/src/baseline.rs`): a function whose source hash changed is reported as source-changed and is not tested for an object change. So `object changed` counts only functions whose OBJECT code moved while their source did not -- a compiler or option effect -- and a count of none there does not mean the object fingerprint saw nothing.",
+]
+
+[[feature.cmd]]
+run = "rm -rf target/showcase/baseline && mkdir -p target/showcase/baseline && cp examples/c/build.sh examples/c/demo.c examples/c/butterfly.toml target/showcase/baseline/ && cp examples/llvm-env.sh examples/adapter.sh target/showcase/"
+exit = 0
+
+[[feature.cmd]]
+run = "./target/showcase/baseline/build.sh && butterfly ingest target/showcase/baseline/build --source-root target/showcase/baseline -o target/showcase/baseline/before.json"
+exit = 0
+
+[[feature.cmd]]
+run = "butterfly baseline target/showcase/baseline/before.json -o target/showcase/baseline/butterfly-baseline.json"
+exit = 0
+show = true
+caption = "Freeze the baseline."
+
+[[feature.cmd]]
+run = "sed 's/0x04C11DB7u/0x1EDC6F41u/' examples/c/demo.c > target/showcase/baseline/demo.c && ./target/showcase/baseline/build.sh"
+exit = 0
+
+[[feature.cmd]]
+run = "butterfly ingest target/showcase/baseline/build --source-root target/showcase/baseline --baseline target/showcase/baseline/butterfly-baseline.json -o target/showcase/baseline/after.json 2>&1 | grep '^baseline'"
+exit = 0
+show = true
+expect = ["baseline   changed"]
+caption = "Ingest the rebuilt copy, its CRC polynomial changed, against the baseline; the edit and the rebuild are in the reproduce block below."
+
+[[feature.cmd]]
+run = "butterfly baseline target/showcase/baseline/after.json -o target/showcase/baseline/after-baseline.json > /dev/null 2>&1 && diff target/showcase/baseline/butterfly-baseline.json target/showcase/baseline/after-baseline.json | grep Sha256"
+exit = 0
+show = true
+expect = ["sourceSha256", "objectSha256"]
+caption = "The baseline taken before the change and the baseline taken after it differ in the source hash of the function that changed, and in that same function's object-code hash. The command greps for those hashes; the only other difference between the baselines is the `createdUnix` stamp each records when it was written."
+
+[[feature.shot]]
+file = "v20-reviewed"
+evidence = "target/showcase/baseline/before.json"
+resolutions = "target/showcase/baseline/resolutions.json"
+route = "#/fn/{fn:checksum}/flow"
+seed = {sl-mode = "projected", sl-author = "reviewer"}
+steps = [
+  {wait = ".vrow button.badge"},
+  {click = ".vrow button.badge"},
+  {wait = "#modal .dialog"},
+  {fill = "#modal textarea", value = "EXAMPLE TEXT typed by the showcase script so that there is a review to go stale. It is not a review decision."},
+  {click = "#modal button.primary"},
+  {wait = ".vrow button.badge:has-text('reviewer')"},
+]
+expect = ["reviewer"]
+clip = [".fn-head", ".vrow"]
+caption = "Before the change: a source-to-object review is recorded on checksum (example text, entered by the script)."
+
+[[feature.shot]]
+file = "v20-stale"
+evidence = "target/showcase/baseline/after.json"
+resolutions = "target/showcase/baseline/resolutions.json"
+route = "#/fn/{fn:checksum}/flow"
+seed = {sl-mode = "projected"}
+steps = [{wait = ".vrow button.badge"}]
+expect = ["STALE — source changed since the baseline", "Baseline changed"]
+caption = "After the constant changed: the same review is marked STALE with the reason, and the bar at the foot of the page leads with Baseline changed, in red."
+
+[[feature.shot]]
+file = "v20-baseline"
+evidence = "target/showcase/baseline/after.json"
+resolutions = "target/showcase/baseline/resolutions.json"
+route = "#/overview"
+steps = [{scroll = "h3:has-text('Baseline butterfly-baseline.json')", block = "center"}]
+expect = ["1 function(s) changed source since the baseline"]
+caption = "The Overview of the rebuilt evidence: the baseline comparison lists what changed."
+
+# ─────────────────────────────── V21 ────────────────────────────────────────
+
+[[feature]]
+id = "V21"
+issue = 193
+group = "use"
+title = "Go to definition"
+status = "captured"
+prereq = "needs Universal Ctags on PATH: the `ctags` that ships with macOS is BSD ctags and `butterfly tags` rejects it"
+fixtures = ["c-lib"]
+claim = """
+With an optional index written by `butterfly tags` (Universal Ctags), an \
+identifier in the source pane becomes a jump target: to the function view when \
+it is an analysed function, to the file view at that line when it is a type, \
+macro or static defined in a file the evidence carries. Nothing is underlined \
+at rest; hovering shows what is a link."""
+limits = [
+  "A navigation aid, deliberately kept out of the evidence: it is not certification data and its absence changes nothing else.",
+  "Needs Universal Ctags. The `ctags` that ships with macOS is BSD ctags and is rejected.",
+  "An identifier defined in a header the evidence does not carry is named in a tooltip but is not a link.",
+  "A tags index built against other evidence is ignored, with a note, rather than pointing at lines that have moved.",
+]
+
+[[feature.cmd]]
+run = "butterfly tags examples/c-lib/build/evidence.json"
+exit = 0
+show = true
+expect = ["definition(s)"]
+caption = "Write the definition index beside the evidence."
+
+[[feature.shot]]
+file = "v21-goto-before"
+isolate = true
+route = "#/fn/{fn:sched_run}/flow"
+seed = {sl-mode = "projected"}
+steps = [{wait = "table.src span.def"}, {hover = "table.src span.def:not(.off):text-is('state_raise_fault')"}, {pause = 200}]
+expect = ["sched_run"]
+clip = [".panes"]
+caption = "sched_run in examples/c-lib with the call to state_raise_fault hovered in the source pane: it is marked as a jump target."
+
+[[feature.shot]]
+file = "v21-goto-after"
+isolate = true
+route = "#/fn/{fn:sched_run}/flow"
+seed = {sl-mode = "projected"}
+steps = [{wait = "table.src span.def"}, {click = "table.src span.def:not(.off):text-is('state_raise_fault')"}, {wait = "#content h1:text-is('state_raise_fault')"}]
+expect = ["state_raise_fault"]
+clip = [".fn-head", ".panes"]
+caption = "After the click: the viewer has moved to state_raise_fault, which is defined in another source file."
+
+# ─────────────────────────────── V22 ────────────────────────────────────────
+
+[[feature]]
+id = "V22"
+issue = 194
+group = "trust"
+title = "Provenance and the honesty features"
+status = "captured"
+fixtures = ["c"]
+claim = """
+Every evidence file lists the inputs it was built from, each with its SHA-256 \
+({{c.inputs}} for `examples/c`), and the caveats that apply to it \
+({{c.caveats}} here). The compiler and its flags are there when the build left \
+a `build-info.txt` beside its artifacts, as `examples/c` does; with no such \
+file the evidence records neither, and `butterfly doctor` reports its absence \
+as a note. The bar at the foot of every page \
+names the overlay that is selected and the caveat that goes with it: that no \
+overlay is applied, that the colouring is projected and not measured, or that \
+it is measured and not projected (#209)."""
+limits = [
+  "This section is the limits. The caveats shown are the ones this evidence file carries; another build carries others (an unlinked object, a stale baseline, an exploratory build, a shallow clone).",
+  "The bar follows the overlay the viewer has selected (#209). It reads \"no coverage overlay\" in this section's shots because the viewer opens with colouring off, and `examples/c` imports no execution trace, so over this evidence it can never read \"measured\" at all. V28 is where it does: the last screenshot of that section is this same bar, over `examples/rust-qemu`, with Measured selected.",
+  "Provenance records what was read. It does not establish that those inputs were the configuration-controlled ones.",
+  "Every evidence file embeds absolute paths, the build host name and the full source text. Redact before sending one outside your organisation. A report renders the same evidence but carries less of it — V15 is the limit for that artefact.",
+]
+
+[[feature.shot]]
+file = "v22-provenance"
+route = "#/overview"
+steps = [{click = "#provBtn"}, {wait = "#prov:not(.hidden)"}, {pause = 200}]
+expect = ["sha256"]
+caption = "The Provenance panel of examples/c: tool version, host, compiler and flags, and each input with its SHA-256."
+
+[[feature.shot]]
+file = "v22-caveats"
+route = "#/overview"
+steps = [{scroll = "h2:has-text('Build & provenance')"}]
+expect = ["Caveats", "Object-code coverage is PROJECTED"]
+caption = "The end of the Overview: build and provenance, and the caveats this evidence carries — among them that the coverage is projected, and that the MC/DC record layout of this coverage export carries no test vectors."
+
+# ─────────────────────────────── V23 ────────────────────────────────────────
+
+[[feature]]
+id = "V23"
+issue = 195
+group = "trust"
+title = "Security posture"
+status = "captured"
+fixtures = ["c"]
+claim = """
+The viewer serves the complete source text of the analysed project, and is \
+built accordingly. It binds loopback by default. A network listener is refused without `--allow-remote`, refused again without `--insecure-http`, and needs a token, which comes from `--token-file`, `BUTTERFLY_TOKEN`, `--token generate` or the deprecated literal `--token`, and is accepted from a `#token=` fragment, never from a `?token=` query. Every artefact `butterfly \
+ingest` reads — the coverage export, each source, the objects, a trace, the \
+auxiliary files — is sized against a per-kind cap and a budget for the whole \
+run before it is read, as are the evidence and the resolutions sidecar \
+`butterfly serve` loads; a refusal names the variable that would raise the cap."""
+limits = [
+  "The built-in server is plain HTTP. TLS is a reverse proxy's job, and a token authenticates without encrypting: off loopback, the source text and the token cross the network in clear.",
+  "Rate limiting per client is not butterfly's job either.",
+  "`--allow-unauthenticated-remote` is the flag that turns the token requirement off for a network listener: reads are then open to anyone who can reach the port, and writes are refused. It is there for an operator who wants such a listener on a network they trust. Its refusal is not among those below, which come earlier, for a listener missing `--allow-remote` or `--insecure-http`.",
+  "The refusals below use 192.0.2.10, an address reserved for documentation (RFC 5737), so that nothing could be exposed by running them.",
+  "That source files are read only inside --source-root unless --allow-external-source is given, and that the token is cleared from the address bar, are asserted by the test suites (crates/ingest/tests/source_containment.rs, ui/token.test.cjs) and are not shown here.",
+  "The claim names the reads it covers. The same bounded readers also size the evidence `butterfly tags` and `butterfly claims` read (evidence cap), the requirements sidecar `claims` reads, the config `butterfly build` reads and the requirement documents `butterfly serve` re-hashes at startup (auxiliary cap), and each analysed source `/api/freshness` re-hashes (source cap) (#231). None of those is demonstrated below; they are asserted by lowered-cap tests in crates/cli/tests/bounded_reads.rs and crates/view/src/freshness.rs.",
+  "The caps cover file reads. The output of the helpers butterfly runs (`llvm-objdump`, `git`, `llvm-cov export`, `ctags`) has its own deadline and per-stream ceiling (#246); both are asserted by unit tests with dummy helpers, not shown in the captured run.",
+]
+
+[[feature.cmd]]
+run = "butterfly serve examples/c/build/evidence.json --listen 192.0.2.10:8787"
+exit = 1
+show = true
+expect = ["refusing to bind"]
+caption = "A non-loopback address is refused."
+
+[[feature.cmd]]
+run = "butterfly serve examples/c/build/evidence.json --listen 192.0.2.10:8787 --allow-remote"
+exit = 1
+show = true
+expect = ["refusing to serve", "plain HTTP"]
+caption = "--allow-remote alone is refused too: plain HTTP off loopback has to be acknowledged."
+
+[[feature.cmd]]
+run = "mkdir -p target/showcase/oversized && head -c 2097152 /dev/zero > target/showcase/oversized/coverage.json"
+exit = 0
+
+[[feature.cmd]]
+run = "BUTTERFLY_MAX_COVERAGE_MB=1 butterfly ingest --coverage target/showcase/oversized/coverage.json --object examples/c/build/demo --source-root examples/c -o target/showcase/oversized/evidence.json"
+exit = 1
+show = true
+expect = ["BUTTERFLY_MAX_COVERAGE_MB"]
+caption = "A 2 MiB input against a 1 MiB cap: refused before it is read, naming the variable that raises the cap."
+
+[[feature.cmd]]
+run = "(umask 077 && echo showcase-demo-token-not-a-secret > target/showcase/token.txt)"
+exit = 0
+
+[[feature.shot]]
+file = "v23-token-prompt"
+token = "showcase-demo-token-not-a-secret"
+token_prompt = true
+viewport = [1000, 440]
+route = ""
+steps = [{wait = "input[type=password]"}]
+expect = ["This viewer needs an access token"]
+caption = "A server started with --token-file: the viewer asks for the token in a password field before it shows anything."
+
+# ─────────────────────────────── V24 ────────────────────────────────────────
+
+[[feature]]
+id = "V24"
+issue = 196
+group = "trust"
+title = "Dead code and the source-to-object review"
+status = "captured"
+fixtures = ["c-lib"]
+claim = """
+A dead-code candidate (§6.4.4.3.c) is a symbol nothing in the image calls, whose address nothing takes, that is not the entry point, and whose name does not mark it as one (a name containing `main`, `start`, `reset`, `vector`, `handler` or `exception` is passed over); resolving one shows the reasons it is a candidate. Among the functions of `examples/c-lib` that is `unused_scale` alone: `task_trim` never ran either, but the scheduler's dispatch table holds its address, so it is untested, not dead. The source-to-object review sample (CAST-12) shows how many functions a reviewer has recorded a review on, how much of the code and the object code they cover, and which source constructs the sample reaches."""
+limits = [
+  "A candidate is a candidate. Defensive code and deactivated code are not dead code, and the reviewer decides which a candidate is.",
+  "The review is performed by a person; butterfly presents the evidence and records the verdict. Neither projected nor measured coverage is that review.",
+  "The review text in the screenshot is example text typed by the capture script, not a review.",
+  "Without an entry point -- an unlinked object -- no candidate is claimed at all (examples/c-lib/build-lib, which no section here photographs).",
+]
+
+[[feature.cmd]]
+run = "rm -rf target/showcase/v24 && mkdir -p target/showcase/v24"
+exit = 0
+
+[[feature.shot]]
+file = "v24-dead"
+evidence = "examples/c-lib/build/evidence.json"
+resolutions = "target/showcase/v24/resolutions.json"
+route = "#/overview"
+steps = [
+  {scroll = "h2:has-text('Dead-code candidates')"},
+  {click = "tr:has-text('unused_scale') button"},
+  {wait = "#modal .dialog"},
+]
+expect = ["unused_scale", "address never taken"]
+caption = "The Overview's dead-code candidates for examples/c-lib, and the dialog that resolving unused_scale opens: the reasons it is a candidate, before a reviewer records a decision."
+
+[[feature.shot]]
+file = "v24-review"
+evidence = "examples/c-lib/build/evidence.json"
+resolutions = "target/showcase/v24/resolutions.json"
+route = "#/fn/{fn:crc_block}/flow"
+seed = {sl-mode = "projected", sl-author = "reviewer"}
+steps = [
+  {wait = ".vrow button.badge"},
+  {click = ".vrow button.badge"},
+  {wait = "#modal .dialog"},
+  {fill = "#modal textarea", value = "EXAMPLE TEXT typed by the showcase script so that the sample has a row. It is not a review decision."},
+  {click = "#modal button.primary"},
+  {wait = ".vrow button.badge:has-text('reviewer')"},
+]
+expect = ["reviewer"]
+clip = [".fn-head", ".vrow"]
+caption = "A source-to-object review recorded on crc_block (example text, entered by the script)."
+
+[[feature.shot]]
+file = "v24-sample"
+evidence = "examples/c-lib/build/evidence.json"
+resolutions = "target/showcase/v24/resolutions.json"
+route = "#/overview"
+steps = [{scroll = "h2:has-text('Source-to-object traceability analysis')"}]
+expect = ["CAST-12 sample adequacy", "crc_block"]
+caption = "The review sample after that one review: the code and object code it covers, and the constructs it reaches."
+
+# ─────────────────────────────── V25 ────────────────────────────────────────
+
+[[feature]]
+id = "V25"
+issue = 197
+group = "use"
+title = "Finding your way around"
+status = "captured"
+fixtures = ["c-lib"]
+claim = """
+Search narrows the function list as you type. Every function, tab, file and \
+line has its own URL, so a finding can be sent to a colleague as a link. The \
+theme switches between dark and light and is remembered. The keyboard \
+shortcuts are listed at the foot of the Overview, as in the last screenshot."""
+limits = [
+  "A link addresses a function or file by the id assigned at ingest, so it is stable for one evidence file, not across re-ingests that add or remove functions.",
+  "The shortcuts shown are the viewer's own list; this page does not restate them, so that it cannot drift from them.",
+]
+
+[[feature.shot]]
+file = "v25-search-light"
+route = "#/overview"
+seed = {sl-theme = "light", sl-mode = "projected"}
+steps = [{click = "#search"}, {fill = "#search", value = "sched"}, {pause = 300}]
+expect = ["sched_run"]
+caption = "examples/c-lib in the light theme with \"sched\" typed into the search box: the function list is narrowed to the matches."
+
+[[feature.shot]]
+file = "v25-deeplink"
+route = "#/file/{file:util.c}/L22"
+seed = {sl-theme = "light", sl-mode = "projected"}
+steps = [{wait = "canvas.minimap"}, {pause = 300}]
+expect = ["util.c", "saturating_add"]
+clip = [".panes"]
+caption = "A deep link to a line of a file (the route ends in the line number): the file view opens with that line in view and marked."
+
+[[feature.shot]]
+file = "v25-keys"
+route = "#/overview"
+steps = [{scroll = "p:has(kbd)", block = "end"}]
+expect = ["Keys:", "next/prev function"]
+clip = ["p:has(kbd)"]
+caption = "The viewer's own list of keyboard shortcuts, at the foot of the Overview."
+
+# ─────────────────────────────── V26 ────────────────────────────────────────
+
+# Captured as of #229. #151 merged, so `support/matrix.toml` is in the
+# checkout and the table is rendered below; the chip may no longer say it is
+# not demonstrated over ninety rows of exactly the thing it claims is
+# missing. #153 rendered the same table into the README and the manual, from
+# the same file, with ui/matrix_docs.test.cjs failing when they drift.
+#
+# The claim below is written from crates/ingest/tests/support_matrix.rs, the
+# test that enforces each of those rules, and not from intent. It carries no
+# counts because the matrix is not a fixture and its numbers may not be typed
+# in; build.cjs prints the row counts itself, from the file, above the table.
+
+[[feature]]
+id = "V26"
+issue = 198
+group = "use"
+title = "Language and toolchain support"
+status = "captured"
+fixtures = ["c", "c-lib", "c-per-test", "c-callgraph", "cpp", "cpp-lib", "rust-qemu"]
+claim = """
+What this repository has actually tried, as a table: its language \
+constructs, architectures, object formats and toolchains, and the tool's own \
+viewer, command-line, build-system and documentation features beside them, \
+each marked supported, handled with caveats, or not supported. Every row that claims support or caveats names an example directory that exists; every supported row also names a test that reads that example, and a language or toolchain row names the file and the line inside that example where the construct is. A row that is not supported gives its reason instead. A Rust \
+test re-checks all of that whenever the suite runs — including that a \
+supported row's example is built by CI, and that the pattern the row gives \
+still matches within a few lines of the line it cites — so a claim cannot \
+outlive the example behind it. The table itself follows the last section of this page."""
+limits = [
+  "The table says what this repository has tried, not what the tool could do. A construct nobody has written an example for is either absent from it or marked not supported with a reason, and an absent construct is not a statement either way.",
+  "The check is textual. It confirms that a row still points at a file, a line, a pattern and a test that exist; it cannot tell whether that test asserts the construct. Reading each proof is the claims audit (#200).",
+  "A row handled with caveats may lean on an example CI does not build, and may have no test at all — but only where it says so in its own caveat, which the check enforces.",
+  "Not every example the table cites is built by this page. It also cites the construct examples (`examples/c-constructs`, `examples/cpp-constructs`, `examples/rust-constructs`), the header-inline examples, `examples/cpp-exceptions`, `examples/c-switch`, `examples/c-unprofiled-static`, `examples/rust-lib`, `examples/c-gcc` and the build-system integrations, which no section here photographs.",
+]
+
+[[feature.cmd]]
+# Built first and not shown, so that the block below is the test's own output
+# and not whatever cargo happened to have to compile on this host.
+run = "cargo build --locked --tests -p butterfly-ingest"
+exit = 0
+
+[[feature.cmd]]
+run = "cargo test -q --locked -p butterfly-ingest --test support_matrix"
+exit = 0
+show = true
+expect = ["test result: ok."]
+caption = "The check that keeps the table honest, over this checkout: every row's example, evidence line, pattern and proof still resolve, and every example directory backs a row."
+
+# ─────────────────────────────── V27 ────────────────────────────────────────
+
+[[feature]]
+id = "V27"
+issue = 199
+group = "use"
+title = "Quickstart: from zero to evidence"
+status = "captured"
+fixtures = ["c"]
+facts = {quickstart = "target/showcase/quickstart/evidence.json"}
+claim = """
+From a clone to a served viewer on your own C project: copy the build \
+template, set the project name, the sources and the include flags, build, check the build with `doctor`, ingest, \
+serve. The block below does exactly that with `demo.c` standing in for your \
+project, and ends with evidence for {{quickstart.functions}} functions."""
+limits = [
+  "Prerequisites: Rust (rust-toolchain.toml pins 1.97.1 and rustup fetches it), the llvm-tools rustup component, and your project's compiler — upstream LLVM/clang ≥ 18 if you need MC/DC. Apple clang numbers itself separately: the Apple compiler on this host already writes the LLVM 18 MC/DC record layout.",
+  "The llvm-profdata that merges a profile must come from the same LLVM as the compiler that wrote it. The template asks the compiler where its own tools are (`$CC -print-prog-name=llvm-profdata`) and uses the answer when it is an absolute path; when the compiler cannot say, it falls back to `$LLVM_PROFDATA` or to whatever `PATH` holds, and stops when the one it settled on cannot be found. So a mismatched pair is made unlikely, not impossible — the line the template prints names the one it chose.",
+  "The template builds the sources a second time on purpose — instrumented for coverage, and again clean for the object code that is analysed. `-O0` is its default; analysing your shipped optimisation level is your decision.",
+  "`cargo install --path crates/cli` is the documented install; the capture runs the binary `cargo build` produced from the same checkout.",
+]
+
+[[feature.cmd]]
+run = "rm -rf target/showcase/quickstart && mkdir -p target/showcase/quickstart/src && cp examples/c/demo.c target/showcase/quickstart/src/ && cp templates/build.sh target/showcase/quickstart/"
+exit = 0
+
+[[feature.cmd]]
+run = "(cd target/showcase/quickstart && sed -e 's/^PROJECT=myproject /PROJECT=demo /' -e 's|^SRC=\"src/foo.c src/bar.c\"|SRC=\"src/demo.c\"|' -e 's/^INCLUDE=\"-Iinclude\"/INCLUDE=\"\"/' build.sh > build.sh.new && mv build.sh.new build.sh && chmod +x build.sh)"
+exit = 0
+
+[[feature.cmd]]
+run = "(cd target/showcase/quickstart && ./build.sh)"
+exit = 0
+show = true
+caption = "The template narrates each step of both builds."
+
+[[feature.cmd]]
+run = "butterfly doctor target/showcase/quickstart/build"
+exit = 0
+show = true
+caption = "doctor on the result."
+
+[[feature.cmd]]
+run = "butterfly ingest target/showcase/quickstart/build --source-root target/showcase/quickstart -o target/showcase/quickstart/evidence.json"
+exit = 0
+
+[[feature.shot]]
+file = "v27-quickstart"
+evidence = "target/showcase/quickstart/evidence.json"
+route = "#/overview"
+steps = [{wait = ".gate-verdict"}]
+expect = ["Structural coverage — Annex A table A-7"]
+caption = "The Overview served from the evidence the quickstart commands produced."
+
+# ─────────────────────────────── V28 ────────────────────────────────────────
+#
+# Not in the epic's V01..V27: the measured-coverage demonstration #164 adds.
+# It is captured as of #229: examples/rust-qemu is on `main` (PR #208), so
+# there is an evidence file carrying a trace for these shots to point at, and
+# #209 (PR #211) had already made the footer read "Measured, not projected"
+# under the Measured overlay. Every number below comes from a
+# {{rust-qemu...}} placeholder, as this block always required.
+
+[[feature]]
+id = "V28"
+issue = 164
+group = "evidence"
+title = "Measured object-code coverage from an execution trace"
+status = "captured"
+claim = """
+With an execution trace imported beside the coverage export, the Object tab \
+shows each instruction under a projection and under a measurement, and they \
+can disagree. Neither is always there to show: an instruction the line table \
+places nowhere carries no projection — {{rust-qemu.executedUnknown}} of \
+`examples/rust-qemu`'s instructions ran with none — and an instruction the \
+trace never reached carries no count, which is what the Measured overlay \
+draws as never executed. The trace of `examples/rust-qemu` \
+({{rust-qemu.traceFormat}}) executed \
+{{rust-qemu.instructionsMeasuredCovered}} of the evidence's \
+{{rust-qemu.instructionsTotal}} instructions and took \
+{{rust-qemu.outcomeEdgesMeasured}} of its {{rust-qemu.outcomeEdgesTotal}} \
+branch outcomes; it disagrees with the projection at \
+{{rust-qemu.disagreements}} instructions, of which \
+{{rust-qemu.projectedNotExecuted}} are projected covered and never ran. \
+`monitor::sum` is that case in one screen: its source coverage is complete \
+at {{rust-qemu.fn.flight_qemu::monitor::sum.linesCovered}}/\
+{{rust-qemu.fn.flight_qemu::monitor::sum.linesTotal}} lines, and \
+{{rust-qemu.fn.flight_qemu::monitor::sum.blocksNeverExecuted}} of its \
+{{rust-qemu.fn.flight_qemu::monitor::sum.blocks}} basic blocks were never \
+entered — the bounds-check and overflow-panic paths `rustc` emits for its \
+indexing and its arithmetic. The Object tab shows the same blocks under the \
+Projected and the Measured overlay."""
+fixtures = ["rust-qemu"]
+limits = [
+  "Measured coverage says which instructions executed. It is not the source-to-object review: an instruction can execute and still be wrong.",
+  "The trace comes from QEMU (`-d in_asm,exec,nochain`), which is not a qualified tool, and the measurement is only as good as the trace. An emulator is not the target.",
+  "The coverage export comes from an instrumented host build and the trace from the non-instrumented target build of the same sources, joined by demangled name. Projected and measured are comparable only because both runs execute the same campaign on the same sources; that is a property of this example, not of the tool.",
+  "Code that exists only on the target — the entry point, the panic handler — and code `rustc` does not instrument has no coverage record and so no function page. The Overview lists it as code in the image without source-coverage evidence, with its own executed-in-trace column: for that code the trace is the only coverage there is.",
+  "examples/rust-qemu is verified locally; hosted CI does not build it, because it needs QEMU and a bare-metal target (#147, #164). The hosted workflow excuses this example from its no-skips rule by name.",
+]
+
+# The two shots below are a comparison, so they are scrolled to the SAME
+# block: B8, one of the three the trace never entered. Without that they
+# showed the function's entry block, where the two overlays agree, and the
+# contradiction the section exists for was below the fold in both (#229).
+# `data-block` rather than the caption text, because the caption is the thing
+# that differs between the two modes.
+#
+# `expect` is checked inside the published crop, which is the code pane: the
+# footer is not in it, so "Projected, not measured" is asserted by
+# v28-footer-measured's own shot and by ui/browser/checks/footer.cjs, not
+# here.
+[[feature.shot]]
+file = "v28-projected"
+route = "#/fn/{fn:flight_qemu::monitor::sum}/object"
+seed = {sl-mode = "projected"}
+steps = [{wait = "table.obj tr.i"}, {scroll = "tr.blk[data-block=\"8\"]", block = "center"}]
+expect = ["projected covered"]
+clip = [".pane >> nth=0"]
+# Not "every instruction is implied covered": of this function's instructions
+# some carry no source line at all and are shown as unknown, never as
+# covered. What the projection really says here is that no block is left
+# uncovered, because every source line of the function was executed by the
+# instrumented run -- which is the statement the Measured shot contradicts.
+caption = "monitor::sum under the Projected overlay, at the block the next screenshot contradicts: that block, like every block in view, is projected covered, because every one of its {{rust-qemu.fn.flight_qemu::monitor::sum.linesTotal}} source lines was executed by the instrumented run."
+
+[[feature.shot]]
+file = "v28-measured"
+route = "#/fn/{fn:flight_qemu::monitor::sum}/object"
+seed = {sl-mode = "measured"}
+steps = [{wait = "table.obj tr.i"}, {scroll = "tr.blk[data-block=\"8\"]", block = "center"}]
+expect = ["measured never executed", "measured executed"]
+clip = [".pane >> nth=0"]
+caption = "The same blocks under the Measured overlay: {{rust-qemu.fn.flight_qemu::monitor::sum.blocksNeverExecuted}} of them are marked measured never executed, over source the instrumented run covered in full."
+
+# The two shots above are clipped to the code pane, so neither of them shows
+# the bar at the foot of the page. V22 claims that bar can read "measured and
+# not projected", and until this example existed nothing on this page backed
+# that third reading -- so it is photographed here, where the overlay it
+# describes is actually selected (#209, #229).
+[[feature.shot]]
+file = "v28-footer-measured"
+route = "#/fn/{fn:flight_qemu::monitor::sum}/object"
+seed = {sl-mode = "measured"}
+steps = [{wait = "table.obj tr.i"}, {wait = "#caveat .w"}]
+expect = ["Measured, not projected", "is MEASURED from the imported execution trace"]
+clip = ["#caveat"]
+caption = "The bar at the foot of the same page: which overlay is selected, which trace the colours come from, and what a trace still does not establish."
+
+# ───────────────────────── what we do not claim ─────────────────────────────
+#
+# Rendered as its own section, ahead of the matrix's not-supported rows. Each
+# entry names where the project itself says so: this list restates the
+# project's position, it does not invent one.
+
+[[not_claimed]]
+text = "butterfly is not qualified. There is no DO-330 qualification data for it today, and nothing on this page is a claim of certification, of compliance, or of certification credit."
+source = "docs/qualification/DO-330-assessment.md"
+
+[[not_claimed]]
+text = "Object-code coverage is projected from source coverage through the line table unless an execution trace was imported. Projected green means \"implied by source coverage\", not \"executed\". One example imports a trace — `examples/rust-qemu`, shown in V28, and not built by hosted CI (#164) — and every other example on this page is projected only."
+source = "README.md, \"Projected, measured, and the gap between them\""
+
+[[not_claimed]]
+text = "butterfly does not perform the source-to-object review (Table A-7 objective 9). A human does; butterfly presents instruction-level evidence for it and records the verdict. Neither projected nor measured coverage constitutes that review."
+source = "docs/qualification/DO-330-assessment.md"
+
+[[not_claimed]]
+text = "A gap is a finding, never a verdict, and a recorded resolution is validated, not verified."
+source = "README.md, \"What it shows\""
+
+[[not_claimed]]
+text = "Exploratory builds (`butterfly build`) are never certification evidence. The evidence that counts comes from your configuration-controlled build."
+source = "README.md, \"Exploratory builds and variant comparison\""
+
+[[not_claimed]]
+text = "The Variables panel attributes accesses only on AArch64, and only for a variable the debug info places in one frame slot, which is what an unoptimised (-O0) build produces; it numbers accesses in static instruction order, which is not execution order. An empty list carrying a reason means \"could not tell\"; an empty list with no reason asserts that no instruction in the function addresses the variable's frame slot through the base register the debug info gives for it."
+source = "ui/browser/checks/vars.cjs, crates/ingest/tests/vars.rs"
+
+[[not_claimed]]
+text = "No MC/DC from GCC (-fcondition-coverage is not MC/DC) and none from Rust (the instrumentation was removed upstream)."
+source = "README.md, \"MC/DC does not come from GCC\" for the first; \"Rust (e.g. the ARINC 653 kernel)\" for the second"
+
+[[not_claimed]]
+text = "Of `butterfly check`'s thresholds, only --min-lines and --min-outcomes read the evidence alone; the others also count recorded resolutions. --min-lines is line coverage, a proxy for statement coverage."
+source = "README.md, \"Gating a build\""
+
+[[not_claimed]]
+text = "RISC-V has code paths, some of them unit-tested on hand-written instruction lists, but no example, so it is not supported; PE/COFF has no example and no handling beyond recognising its header, so it is not supported either. Neither is shown on this page."
+source = "issue #161"
+
+[[not_claimed]]
+text = "The built-in server has no TLS and no per-client rate limiting: it only caps how many of its expensive requests run at once. Both belong to a reverse proxy in front of it."
+source = "README.md, \"Security posture\"; SECURITY.md"
+
+[[not_claimed]]
+text = "The disassembly, the coverage export and the line table come from llvm-objdump, llvm-cov or gcov, and your compiler — external tools that butterfly reads and does not qualify."
+source = "docs/qualification/DO-330-assessment.md §6.6"

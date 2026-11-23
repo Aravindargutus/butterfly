@@ -1,0 +1,17 @@
+[package]
+name = "butterfly-model"
+description = "Evidence database schema shared by butterfly ingest and view"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+serde.workspace = true
+
+[dev-dependencies]
+# round-tripping the model against Serde's own defaults
+serde_json.workspace = true
+# scratch directories with unpredictable names (#344)
+butterfly-testsupport = { path = "../testsupport" }

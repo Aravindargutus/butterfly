@@ -1,0 +1,20 @@
+# SPDX-License-Identifier: MIT OR Apache-2.0
+# Copyright (c) 2026 Dhakshnamoorthy Durgaraj
+#
+# `src` and `include` are symlinks to ../../c-lib, so this example shares one
+# copy of the library with the others. In your own project they are just
+# directories and this file is unremarkable.
+load("@rules_cc//cc:defs.bzl", "cc_library")
+
+package(default_visibility = ["//visibility:public"])
+
+filegroup(
+    name = "sources",
+    srcs = glob(["src/*.c"]),
+)
+
+cc_library(
+    name = "headers",
+    hdrs = glob(["include/*.h"]),
+    includes = ["include"],
+)

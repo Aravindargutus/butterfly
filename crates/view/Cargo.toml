@@ -1,0 +1,34 @@
+[package]
+name = "butterfly-view"
+description = "Read-only web browser over a butterfly evidence database (presentation only)"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+butterfly-model = { path = "../model" }
+# The gates -- check, worklist, impact -- are analysis over evidence rather
+# than ingestion, and the viewer needs them to answer "does this pass?"
+# without a second implementation that could disagree with the CLI (#75).
+# `ingest` does not depend on `view`, so this is not a cycle.
+butterfly-ingest = { path = "../ingest" }
+serde.workspace = true
+serde_json.workspace = true
+anyhow.workspace = true
+sha2.workspace = true
+axum.workspace = true
+tokio.workspace = true
+
+# O_NONBLOCK, to open a token file without hanging on a FIFO (review of
+# #65). Already in the workspace and the lockfile.
+[target.'cfg(unix)'.dependencies]
+libc.workspace = true
+
+[dev-dependencies]
+# The one place that decides what a missing fixture means (#227). Test-only:
+# nothing in src/ touches it.
+butterfly-testsupport = { path = "../testsupport" }
+# Scratch directories for the tests (#344).
+tempfile.workspace = true

@@ -1,0 +1,14 @@
+[package]
+name = "butterfly-testsupport"
+description = "Test-only helpers shared by the workspace's suites. Not part of the product: no crate here depends on it outside [dev-dependencies]."
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[dependencies]
+# Unpredictable, exclusively created scratch directories (#344). This crate
+# is itself only ever a dev-dependency, so this never reaches a release build.
+tempfile.workspace = true

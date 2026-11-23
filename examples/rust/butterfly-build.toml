@@ -1,0 +1,39 @@
+# SPDX-License-Identifier: MIT OR Apache-2.0
+# Copyright (c) 2026 Dhakshnamoorthy Durgaraj
+#
+#   butterfly build examples/rust/butterfly-build.toml --serve
+#
+# The coverage build needs a nightly rustc for branch/condition regions;
+# the variants are built with the pinned stable toolchain.
+[project]
+name = "demo-rust"
+source_root = "."
+out_dir = "variants"
+
+[compiler]
+kind = "rustc"
+cc = "rustc"
+sources = ["demo.rs"]
+common_flags = ["--edition", "2021", "-g"]
+output = "demo"
+
+[coverage]
+cc = "rustc +nightly"
+flags = ["-Copt-level=0", "-Cinstrument-coverage", "-Zcoverage-options=condition"]
+run = ["{exe}"]
+
+[[variant]]
+name = "O0"
+flags = ["-Copt-level=0"]
+
+[[variant]]
+name = "O1"
+flags = ["-Copt-level=1"]
+
+[[variant]]
+name = "O2"
+flags = ["-Copt-level=2"]
+
+[[variant]]
+name = "Os"
+flags = ["-Copt-level=s"]

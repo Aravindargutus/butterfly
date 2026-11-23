@@ -1,0 +1,39 @@
+# SPDX-License-Identifier: MIT OR Apache-2.0
+# Copyright (c) 2026 Dhakshnamoorthy Durgaraj
+#
+#   butterfly build examples/rust-lib/butterfly-build.toml --serve
+#
+# rustc compiles the whole crate from the root module, so `sources` lists only
+# src/main.rs -- the other five modules are pulled in by its `mod` statements.
+[project]
+name = "flight-lib-rust"
+source_root = "."
+out_dir = "variants"
+
+[compiler]
+kind = "rustc"
+cc = "rustc"
+sources = ["src/main.rs"]
+common_flags = ["--edition", "2021", "-g"]
+output = "flight"
+
+[coverage]
+cc = "rustc +nightly"
+flags = ["-Copt-level=0", "-Cinstrument-coverage", "-Zcoverage-options=condition"]
+run = ["{exe}"]
+
+[[variant]]
+name = "O0"
+flags = ["-Copt-level=0"]
+
+[[variant]]
+name = "O1"
+flags = ["-Copt-level=1"]
+
+[[variant]]
+name = "O2"
+flags = ["-Copt-level=2"]
+
+[[variant]]
+name = "Os"
+flags = ["-Copt-level=s"]

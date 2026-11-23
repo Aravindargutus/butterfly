@@ -1,0 +1,1096 @@
+# SPDX-License-Identifier: MIT OR Apache-2.0
+# Copyright (c) 2026 Dhakshnamoorthy Durgaraj
+#
+# What butterfly supports, one row per language construct, tool feature,
+# toolchain and architecture -- and what backs each claim (#38, #151).
+#
+# The rule: no claim of support without a worked example. Three states:
+#
+#   supported      butterfly analyses it and the output is meaningful. Needs
+#                  an example CI builds, and a test that reads that example.
+#   caveats        it works, but something is approximated, under-reported or
+#                  not yet proven end to end. Needs an example AND the limit
+#                  written down in `caveat`.
+#   not-supported  not claimed. Needs a one-line `reason`. "Not yet
+#                  demonstrated" lives here too: a code path with no example
+#                  is not a claim, and `tracking` names the issue that would
+#                  promote it.
+#
+# crates/ingest/tests/support_matrix.rs checks every row on every `cargo
+# test`; support/README.md says how to add one. Three fixed phrases are read
+# by that check: a caveat must say "not built in CI" to lean on an example CI
+# does not build, "verified locally, not in hosted CI" to lean on an example
+# declared local-only below, and "no test" to stand without a `proof`.
+#
+# Surveyed against main @ c496599 (2026-09-18).
+
+schema = 1
+
+# ═══════════════════════════════════════════════════ local-only examples
+#
+# scripts/ci-local.sh mirrors .github/workflows/ci.yml, and the check holds
+# them to it: the hosted build list must equal the local one MINUS the
+# examples declared here. Nothing else may differ. A declaration is
+#
+#   [[local_only]]
+#   example = "<directory under examples/>"
+#   reason = "<why hosted CI does not build it>"      # required
+#   tracking = [<issues>]
+#
+# and it costs the example something: every row it backs is `caveats` at
+# best, and says "verified locally, not in hosted CI". The day ci.yml builds
+# the example the declaration fails the check, and once it is removed so does
+# the phrase -- neither can outlive the gap.
+#
+
+[[local_only]]
+example = "rust-qemu"
+reason = "Needs qemu-system-aarch64, a nightly with llvm-tools and the aarch64-unknown-none-softfloat target: about 220 MB to install on every hosted run, and hosted minutes are billed. scripts/ci-local.sh builds it wherever those are present and reports a named SKIP where they are not."
+tracking = [147, 164]
+
+# ══════════════════════════════════════════════════════════════ language: C
+
+[[row]]
+id = "c.mcdc"
+area = "language"
+group = "C"
+name = "MC/DC of a multi-condition decision, from clang's -fcoverage-mcdc"
+state = "supported"
+example = "c"
+evidence = "examples/c/demo.c:23"
+pattern = 'gear_down && speed_ok\) \|\| wow'
+proof = "crates/ingest/tests/e2e_demo_c.rs::demo_c_end_to_end"
+
+[[row]]
+id = "c.switch"
+area = "language"
+group = "C"
+name = "switch statement"
+state = "caveats"
+example = "c-switch"
+evidence = "examples/c-switch/switch.c:20"
+pattern = 'switch \(op\)'
+proof = "crates/ingest/tests/jump_table.rs::the_o0_switch_is_read_through_its_table"
+caveat = "A sixteen-case switch compiled to a jump table at -O0 and -O2: the table is read from the image, each case is an edge from the indirect branch, no case block is called unreachable and no case region a predicated decision. Only clang's table shapes are read (AArch64 word, halfword and byte entries; x86-64 32-bit offsets), and the x86-64 path has been run here on Mach-O and on rust-lld-linked x86-64 Linux ELF images of this example; until #325 the ELF disassembly's single-`#` comment hid the table's address, so no ELF table was read. Any other shape leaves the branch unresolved. The indirect branch stays a gap for a reviewer to confirm the table is the switch's. A small switch like examples/c's `phase_name` compiles to compares on AArch64; on x86-64 clang lowers it to a table too, which is read the same way."
+
+[[row]]
+id = "c.static-function"
+area = "language"
+group = "C"
+name = "Internal-linkage (static) functions, kept apart from an extern of the same name"
+state = "supported"
+example = "c-header-inline"
+evidence = "examples/c-header-inline/src/aux.c:9"
+pattern = 'static int32_t scale'
+proof = "crates/ingest/tests/dup_static_symbols.rs::a_static_and_an_extern_of_one_name_stay_apart"
+
+[[row]]
+id = "c.header-static-inline"
+area = "language"
+group = "C"
+name = "A header `static inline` compiled into several translation units"
+state = "supported"
+example = "c-header-inline"
+evidence = "examples/c-header-inline/inc/geom.h:15"
+pattern = 'static inline int32_t geom_clamp'
+proof = "crates/ingest/tests/dup_static_symbols.rs::each_translation_units_copy_keeps_its_own_object_code"
+
+[[row]]
+id = "c.multi-unit"
+area = "language"
+group = "C"
+name = "Several translation units linked into one image, including two files of the same name"
+state = "caveats"
+example = "c-header-inline"
+evidence = "examples/c-header-inline/build.sh:28"
+pattern = 'src/alpha/dup\.c src/beta/dup\.c'
+proof = "crates/ingest/tests/dup_static_symbols.rs::units_with_the_same_basename_are_not_one_unit"
+caveat = "Each unit is analysed apart, but where units share a file name (`src/alpha/dup.c`, `src/beta/dup.c`) llvm-cov qualifies both statics as `dup.c:tally` and keeps a coverage record for only one: the other copy is left unattributed and out of the covered totals, with an image finding naming it, rather than credited to the first unit's function."
+
+[[row]]
+id = "c.static-with-no-coverage-record"
+area = "language"
+group = "C"
+name = "A static function the coverage export has no record for, beside a covered extern of the same name"
+state = "supported"
+example = "c-unprofiled-static"
+evidence = "examples/c-unprofiled-static/src/quiet.c:13"
+pattern = 'no_profile_instrument_function'
+proof = "crates/ingest/tests/dup_unprofiled_static.rs::an_unbound_call_keeps_its_gap_though_another_unit_covers_the_name"
+
+[[row]]
+id = "c.function-pointer-table"
+area = "language"
+group = "C"
+name = "Dispatch through a table of function pointers"
+state = "caveats"
+example = "c"
+evidence = "examples/c/demo.c:69"
+pattern = 'static const op_fn OPS\[\]'
+proof = "ui/callgraph.test.cjs::a chain through a candidate edge is a hypothesis, and stays one"
+caveat = "That op_double and op_negate are held by OPS, are the candidates of apply_op's call and are not dead code is asserted on the CI-built example (crates/ingest/tests/e2e_demo_c.rs), on every host: in an x86-64 Linux PIE the table's words are `R_*_RELATIVE` relocations the file holds as zero, and until #325 G1 both functions read as dead there. How an indirect call is drawn in the call graph is proven on hand-built evidence. The same construct in examples/c-lib (`TASKS[idx](arg)` in `sched.c`) is asserted on its image by `c_lib_arch.rs`: the call is recorded as indirect and the stack chains through it are reported unbounded."
+tracking = [175]
+
+[[row]]
+id = "c.recursion"
+area = "language"
+group = "C"
+name = "Direct recursion"
+state = "caveats"
+example = "c-callgraph"
+evidence = "examples/c-callgraph/depth.c:46"
+pattern = 'static int countdown'
+proof = "ui/callgraph.test.cjs::recursion terminates and is drawn as a cycle rather than a second node"
+caveat = "CI builds the example, but the test proves the call-graph model on hand-built evidence; no test asserts what butterfly reports for the recursion in this example."
+tracking = [175]
+
+[[row]]
+id = "c.mutual-recursion"
+area = "language"
+group = "C"
+name = "Mutual recursion"
+state = "caveats"
+example = "c-callgraph"
+evidence = "examples/c-callgraph/depth.c:57"
+pattern = 'static int ping'
+proof = "ui/callgraph.test.cjs::mutual recursion terminates"
+caveat = "CI builds the example, but the test proves the call-graph model on hand-built evidence; no test asserts what butterfly reports for the recursion in this example."
+tracking = [175]
+
+[[row]]
+id = "c.static-archive"
+area = "language"
+group = "C"
+name = "A static library archive (.a) passed as the object"
+state = "not-supported"
+reason = "Refused by design, with a message saying to link the library into a test image or pass its members: an archive has no single control-flow graph."
+
+[[row]]
+id = "c.unlinked-object"
+area = "language"
+group = "C"
+name = "An unlinked object file (.o)"
+state = "caveats"
+example = "c-lib"
+evidence = "examples/c-lib/build-lib.sh:30"
+pattern = 'rcs build-lib/libflight\.a'
+proof = "crates/ingest/tests/unlinked_objects.rs::unlinked_objects_under_report_coupling_stack_and_the_entry_point"
+caveat = "Shown on the library's five objects from `build-lib.sh`, against the same library linked with its harness. Every object is named UNLINKED in the evidence; only the first object's symbols, stack and data coupling are analysed, global-data references stay relocations so coupling is not reported, stack chains stop at the unit boundary, and with no entry point no dead code is claimed. Linking the library with its harness is the supported route."
+
+[[row]]
+id = "c.dynamic-frame"
+area = "language"
+group = "C"
+name = "Dynamic stack frames: alloca and variable-length arrays"
+state = "caveats"
+example = "c-constructs"
+evidence = "examples/c-constructs/constructs.c:23"
+pattern = 'int buf\[n\];'
+proof = "crates/ingest/tests/c_constructs.rs::a_vla_and_an_alloca_are_unbounded_without_the_su"
+caveat = "A VLA and an alloca are reported not bounded, reason \"dynamic frame (alloca / VLA)\", and so is every caller above them; the worst case shown is the static part of the frame. The `.su` says so where there is one; without it (and `.stack_sizes` leaves such functions out) the run-time `sp` write is recognised in the function body -- until #168 that path reported the VLA bounded by its static frame. The body scan knows clang's AArch64, x86-64, Arm and RISC-V shapes and errs towards dynamic within them (a register-sized adjustment it cannot tell from a VLA reads as dynamic), but a shape within them it does not know reads as a static frame; on any other architecture the prologue is not read either, so without a `.su` the frame is unknown and the stack is not bounded. Its x86-64 shape was checked on clang's disassembly here, and runs on an ingested x86-64 image only in hosted CI. On AArch64 Darwin such a function calls the stack probe `___chkstk_darwin` through its GOT slot (`adrp`/`ldr`/`blr x16`); the slot is resolved to the symbol the image binds it to, so the probe is a direct, runtime-check helper call and not a function-pointer call -- until #271 it read as an indirect call. The same resolution covers ELF `R_*_GLOB_DAT` slots (AArch64 `adrp`/`ldr`/`blr`, x86-64 `call *foo@GOTPCREL(%rip)`), checked here on lld-linked images and in unit tests, not on an ingested ELF image in this example, and, in a position-independent ELF image, `.got` slots an `R_*_RELATIVE` relocation fills with the start of a function of the image (#325)."
+
+[[row]]
+id = "c.goto"
+area = "language"
+group = "C"
+name = "goto"
+state = "caveats"
+example = "c-constructs"
+evidence = "examples/c-constructs/constructs.c:59"
+pattern = 'goto undo_a;'
+proof = "crates/ingest/tests/c_constructs.rs::goto_paths_are_edges_and_the_untaken_ones_are_uncovered"
+caveat = "A goto is an ordinary jump in the object-code graph: a cleanup path, a backward retry and a goto into a loop body (irreducible flow) all come out with no block called unreachable, the never-taken gotos and their labels' code uncovered, and the back edge covered. The shared return block of `goto_cleanup` borrows the closing brace, which llvm-cov counts inside the zero-count `undo_a:` label; it is projected covered by inference, because the covered `return rc;` block (the only code of its line, no call) jumps to it unconditionally, and shown as `shared-line` with that reasoning. Until #270 it read uncovered. The rule proves entry only along such an edge: a shared return reached only from blocks whose own evidence is shared, or through a call, keeps the projection of its borrowed line."
+
+[[row]]
+id = "c.union"
+area = "language"
+group = "C"
+name = "Unions"
+state = "caveats"
+example = "c-constructs"
+evidence = "examples/c-constructs/constructs.c:103"
+pattern = '^union word \{'
+proof = "crates/ingest/tests/c_constructs.rs::unions_and_bitfields_are_whole_objects"
+caveat = "A union is one object: a global's data coupling and a local's variable accesses are attributed to the whole union, never to a member, so writing it as `float` and reading it as `uint32_t` shows as a write and a read of the same variable -- true of the storage, silent on the type pun. Local accesses are read on AArch64 only; elsewhere the variable is listed with the reason."
+
+[[row]]
+id = "c.bitfield"
+area = "language"
+group = "C"
+name = "Bitfields"
+state = "caveats"
+example = "c-constructs"
+evidence = "examples/c-constructs/constructs.c:125"
+pattern = 'unsigned mode : 3;'
+proof = "crates/ingest/tests/c_constructs.rs::unions_and_bitfields_are_whole_objects"
+caveat = "A bitfield access is attributed to the whole struct, not the field, and a write to one field is the read-modify-write of the word that holds it: it shows as a read and a write of the struct (as a global's data coupling, and as a local's accesses on AArch64). Which field, or which neighbouring fields the write preserved, is not reported."
+
+[[row]]
+id = "c.varargs"
+area = "language"
+group = "C"
+name = "Variadic functions defined by the project"
+state = "caveats"
+example = "c-constructs"
+evidence = "examples/c-constructs/constructs.c:161"
+pattern = 'int sum_ints\(int count, \.\.\.\)'
+proof = "crates/ingest/tests/c_constructs.rs::a_variadic_function_has_a_bounded_frame_and_an_untracked_va_list"
+caveat = "A variadic function has a static, bounded frame, its `va_arg` loop is an ordinary decision, and nothing is called unreachable. `va_start` takes the `va_list`'s address, so what `va_arg` reads through it is not attributed, and the variable says so. On AArch64 Darwin `va_list` is a plain pointer; on x86-64 (and AAPCS64 Linux) clang's `va_arg` branches between the register save area and the stack, and the prologue tests `%al` before saving vector registers: compiler branches with no source decision, which by butterfly's rules would be `extra-object-branch` gaps, with the stack-area path projected covered from its line when the run never took it. That shape was read from clang's x86-64 disassembly here, not from an ingested x86-64 image."
+
+[[row]]
+id = "c.control-flow-macro"
+area = "language"
+group = "C"
+name = "Macros that expand to control flow"
+state = "caveats"
+example = "c-constructs"
+evidence = "examples/c-constructs/constructs.c:180"
+pattern = '#define REQUIRE\(cond\)'
+proof = "crates/ingest/tests/c_constructs.rs::a_decision_inside_a_macro_is_placed_at_the_macro_use"
+caveat = "llvm-cov locates a macro's branch regions at the #define; butterfly places them at the macro's use, where the object code is, so each use is a decision on its own line and its never-run `return` is projected uncovered. Until #168 they were dropped: the object branches read as compiler-generated and the never-run return projected covered from the use line. A multi-condition (MC/DC) decision inside a macro is placed at the use as well, its conditions in the #define's order; until #269 it was reported at the #define line as a predicated decision with no object code. The LLVM 18 export layout (Apple clang 17, clang 18) names no file for an MC/DC decision, so it is recovered from where the decision's conditions lie; when that does not settle it (two uses of one macro in a function with different MC/DC results) the decision is not shown and a caveat names it. The LLVM 19+ layout, which states the file, is covered by unit tests only: no host here exports it. Everything a macro expands to shares its use line, so which part of the expansion an instruction implements is inferred, not read."
+
+[[row]]
+id = "c.setjmp-longjmp"
+area = "language"
+group = "C"
+name = "setjmp / longjmp"
+state = "not-supported"
+reason = "Not claimed anywhere and exercised by nothing."
+
+[[row]]
+id = "c.inline-assembly"
+area = "language"
+group = "C"
+name = "Inline assembly in C"
+state = "not-supported"
+reason = "Not claimed anywhere, and no C or C++ example uses it. The Rust inline assembly of examples/rust-qemu (its bare-metal start-up and exit) is not claimed as support either, and no test examines how butterfly reads it."
+
+# ════════════════════════════════════════════════════════════ language: C++
+
+[[row]]
+id = "cpp.anonymous-namespace"
+area = "language"
+group = "C++"
+name = "Same-named functions in anonymous namespaces of different units"
+state = "supported"
+example = "cpp-header-inline"
+evidence = "examples/cpp-header-inline/src/geom.cpp:5"
+pattern = '^namespace \{'
+proof = "crates/ingest/tests/dup_cpp_symbols.rs::anonymous_namespace_copies_keep_their_own_unit"
+
+[[row]]
+id = "cpp.header-inline"
+area = "language"
+group = "C++"
+name = "A header `inline` function compiled into several translation units"
+state = "supported"
+example = "cpp-header-inline"
+evidence = "examples/cpp-header-inline/inc/geom.hpp:11"
+pattern = 'inline std::int32_t clamp_to'
+proof = "crates/ingest/tests/dup_cpp_symbols.rs::the_header_inline_is_attributed"
+
+[[row]]
+id = "cpp.demangling"
+area = "language"
+group = "C++"
+name = "Itanium name demangling, including llvm-cov's file-qualified form"
+state = "supported"
+example = "cpp-header-inline"
+evidence = "examples/cpp-header-inline/src/geom.cpp:9"
+pattern = '^std::int32_t scale\(std::int32_t v\)'
+proof = "crates/ingest/tests/dup_cpp_symbols.rs::anonymous_namespace_copies_keep_their_own_unit"
+
+[[row]]
+id = "cpp.template"
+area = "language"
+group = "C++"
+name = "A function template instantiated at two types"
+state = "caveats"
+example = "cpp"
+evidence = "examples/cpp/flight.cpp:68"
+pattern = 'template <typename T>'
+proof = "crates/ingest/tests/e2e_cpp_constructs.rs::cpp_example_is_inventoried_with_the_cpp_vocabulary"
+caveat = "Each instantiation is a function of its own, projected from its own coverage record; the file's source view is the sum over them, so a line reads covered there if either type ran it. This example's two instantiations take the same path, so it does not show them differing; examples/rust-constructs does (see rust.generics)."
+tracking = [158]
+
+[[row]]
+id = "cpp.virtual-dispatch"
+area = "language"
+group = "C++"
+name = "Virtual dispatch through a vtable"
+state = "caveats"
+example = "cpp"
+evidence = "examples/cpp/flight.cpp:80"
+pattern = 'virtual int32_t apply'
+proof = "crates/ingest/tests/e2e_cpp_constructs.rs::cpp_example_is_inventoried_with_the_cpp_vocabulary"
+caveat = "The call is an indirect branch: its target set is not resolved, and a stack bound through it is refused rather than guessed. The test here asserts only that the overriding apply() is inventoried as virtual; a virtual call read as an indirect branch is asserted on examples/cpp-exceptions and examples/cpp-constructs."
+tracking = [158]
+
+[[row]]
+id = "cpp.mcdc"
+area = "language"
+group = "C++"
+name = "MC/DC of a multi-condition decision in C++"
+state = "caveats"
+example = "cpp"
+evidence = "examples/cpp/build.sh:18"
+pattern = '-fcoverage-mcdc'
+caveat = "The example is built in CI, but no test asserts C++ MC/DC on it."
+tracking = [158]
+
+[[row]]
+id = "cpp.static-initialiser"
+area = "language"
+group = "C++"
+name = "Static initialisers: the constructor function the compiler emits for globals"
+state = "caveats"
+example = "cpp-lib"
+evidence = "examples/cpp-lib/src/sched.cpp:42"
+pattern = 'const Task \*const kTasks'
+caveat = "The example is built in CI, but no test asserts this. `_GLOBAL__sub_I_*` has no source statement behind it and is listed as a dead-code candidate, because the runtime calls it and nothing in the image does."
+tracking = [158]
+
+[[row]]
+id = "cpp.cross-file-vtable"
+area = "language"
+group = "C++"
+name = "A class hierarchy whose key function lives in another translation unit"
+state = "caveats"
+example = "cpp-lib"
+evidence = "examples/cpp-lib/include/flight/sched.hpp:15"
+pattern = 'virtual std::int32_t run'
+caveat = "The example is built in CI, but no test asserts the cross-file key-function behaviour."
+tracking = [158]
+
+[[row]]
+id = "cpp.exceptions"
+area = "language"
+group = "C++"
+name = "Exceptions: throw, catch, landing pads and unwind tables"
+state = "caveats"
+example = "cpp-exceptions"
+evidence = "examples/cpp-exceptions/flight.cpp:37"
+pattern = 'throw OutOfRange'
+proof = "crates/ingest/tests/cpp_exceptions.rs::landing_pads_are_reached_through_the_exception_table"
+caveat = "A throw, a try/catch and the destructors run on unwind, built with exceptions and without. Landing pads are read from the exception table (Mach-O `__unwind_info` here; ELF `.eh_frame` on the x86-64 image hosted CI builds, where this test runs too, and on two lld-linked images in crates/ingest/tests/req_e_elf_images.rs) and drawn as exception edges, so no pad is called unreachable; an exception edge is never projected covered, because a pad's lines also run on the normal path. The calls into the C++ runtime's throw, catch, unwind and `dynamic_cast` machinery are classified as the language runtime; a landing pad's call to `__clang_call_terminate` is classified as a runtime check. The unwinder's own stack use when a throw happens is not counted, and whether each exception edge was taken is not in the evidence."
+
+[[row]]
+id = "cpp.rtti"
+area = "language"
+group = "C++"
+name = "RTTI: dynamic_cast and typeid"
+state = "caveats"
+example = "cpp-exceptions"
+evidence = "examples/cpp-exceptions/flight.cpp:67"
+pattern = 'dynamic_cast<const Altimeter'
+proof = "crates/ingest/tests/cpp_exceptions.rs::the_exception_and_rtti_runtime_is_classified"
+caveat = "A dynamic_cast, built with RTTI and without. The call to __dynamic_cast is classified as the language runtime; the typeinfo it reads is data and is not analysed. typeid is not exercised."
+
+[[row]]
+id = "cpp.lambda"
+area = "language"
+group = "C++"
+name = "Lambdas"
+state = "caveats"
+example = "cpp-constructs"
+evidence = "examples/cpp-constructs/constructs.cpp:113"
+pattern = 'count_if\(v, n, \[limit\]'
+proof = "crates/ingest/tests/cpp_constructs.rs::every_lambda_is_matched_to_its_object_code_and_its_callers"
+caveat = "Every closure's operator() is matched to its object code, whether it is named $_N (in a non-inline function) or {lambda(int, int)#1} (in an inline one); the calls into them from a template, a direct call and an inline member are drawn, and the one converted to a function pointer, reached through the compiler's __invoke, is not reported as dead code. A lambda converted to a function pointer brings a conversion operator and a static __invoke that have no coverage record: each is a function of its own, projected unknown rather than from its enclosing function's lines (#273), and the call through the pointer is an indirect branch whose target is not resolved, so the stack above it is unbounded. Asserted on arm64 Mach-O and on the x86-64 ELF image hosted CI builds."
+
+[[row]]
+id = "cpp.operator-overloading"
+area = "language"
+group = "C++"
+name = "Operator overloading"
+state = "supported"
+example = "cpp-constructs"
+evidence = "examples/cpp-constructs/constructs.cpp:95"
+pattern = 'bool operator==\(const Vec2'
+proof = "crates/ingest/tests/cpp_constructs.rs::overloaded_operators_are_functions_with_callers"
+
+[[row]]
+id = "cpp.constructor-destructor"
+area = "language"
+group = "C++"
+name = "User-written constructors and destructors"
+state = "caveats"
+example = "cpp-constructs"
+evidence = "examples/cpp-constructs/constructs.cpp:49"
+pattern = 'Channel::Channel\(int32_t id\)'
+proof = "crates/ingest/tests/cpp_constructs.rs::a_constructor_is_analysed_from_the_variant_that_has_its_body"
+caveat = "Every variant (C1/C2, D0/D1/D2) is attributed to its source function, and the body the coverage record names is the function's object code, so a derived constructor is shown calling its base's; a local's destructor is a call on the closing brace. The other variants are analysed too, as the function's variants: blocks, gaps and a projected status, each address once. The instrumentation counts only the body, so where the body ran, source coverage cannot say whether a variant did: its instructions are projected unknown, not covered, it is an uncounted-variant gap, and its bytes are not in the image's covered-bytes figure. Channel's deleting destructor, which never runs, is therefore reported but not shown as never run; a trace is what shows that. A variant of a body that never ran is projected uncovered. Asserted on arm64 Mach-O, where C1 and D1 are separate thunks; on the x86-64 ELF image hosted CI builds they are aliases of the body and only D0 is a variant, which every_constructor_and_destructor_variant_is_analysed_once asserts there in hosted CI."
+
+[[row]]
+id = "cpp.new-delete"
+area = "language"
+group = "C++"
+name = "new / delete"
+state = "caveats"
+example = "cpp-constructs"
+evidence = "examples/cpp-constructs/constructs.cpp:133"
+pattern = 'new Boosted\(id, 3\)'
+proof = "crates/ingest/tests/cpp_constructs.rs::new_and_delete_are_calls_into_the_cpp_runtime"
+caveat = "The example's calls to the global operator new, new[] and delete[] are core-lib helper calls, the class std:: code gets; a delete through a base pointer is an extra object branch (the null check) and an indirect branch (the virtual deleting destructor). The deleting destructor's own call to operator delete is a core-lib helper call in that variant, though whether a given deleting destructor ran is not established by source coverage (see cpp.constructor-destructor). A class-specific operator new is classified as project code by a unit test of the classifier (synthetic.rs::helper_classification), not by this example."
+
+[[row]]
+id = "cpp.standard-library"
+area = "language"
+group = "C++"
+name = "The C++ standard library: containers, algorithms, smart pointers"
+state = "not-supported"
+reason = "Not claimed and exercised by nothing: the C++ examples include only <cstdint>, <cstdio> and <cstring>."
+
+# ═══════════════════════════════════════════════════════════ language: Rust
+
+[[row]]
+id = "rust.mcdc"
+area = "language"
+group = "Rust"
+name = "MC/DC from Rust"
+state = "not-supported"
+example = "rust"
+reason = "rustc cannot supply it: current nightlies reject -Zcoverage-options=mcdc and stable emits no branch regions, so the example yields statement and branch coverage only."
+
+[[row]]
+id = "rust.branch-coverage"
+area = "language"
+group = "Rust"
+name = "Statement and branch coverage of `if` and `match`"
+state = "caveats"
+example = "rust"
+evidence = "examples/rust/demo.rs:32"
+pattern = 'match phase'
+proof = "crates/ingest/tests/e2e_rust_constructs.rs::if_conditions_are_branch_regions_and_match_arms_are_lines"
+caveat = "Only `if` conditions have outcome coverage: rustc emits no branch region for a `match` arm, so a `match` is covered arm by arm as lines. Branch regions need a nightly rustc (see toolchain.rustc-nightly)."
+
+[[row]]
+id = "rust.demangling"
+area = "language"
+group = "Rust"
+name = "Rust symbol demangling"
+state = "supported"
+example = "rust"
+evidence = "examples/rust/demo.rs:9"
+pattern = 'pub fn clamp_altitude'
+proof = "crates/ingest/tests/e2e_rust_constructs.rs::rust_symbols_are_demangled_and_join_across_the_two_compilers"
+
+[[row]]
+id = "rust.runtime-check"
+area = "language"
+group = "Rust"
+name = "Compiler-inserted runtime checks (overflow, bounds, division) classified as such"
+state = "caveats"
+example = "rust"
+evidence = "examples/rust/demo.rs:63"
+pattern = 'sum / v\.len\(\)'
+proof = "crates/ingest/tests/e2e_rust_constructs.rs::the_division_checks_in_average_are_classified_as_runtime_checks"
+caveat = "The checks are classified as runtime checks, but the projection calls them covered because their line ran, though no input divides by zero; only a trace shows they did not run (see rust.panic-path-measured). They are object code with no source counterpart, to be justified, not covered. On x86-64 Linux rustc calls the panic through a GOT slot (`call *slot(%rip)`), which is read as the direct call it is; until #325 it was an indirect call there, and the checks went unclassified."
+
+[[row]]
+id = "rust.closure"
+area = "language"
+group = "Rust"
+name = "Closures: capturing by reference and by move, passed as FnMut and FnOnce to generic functions"
+state = "caveats"
+example = "rust-constructs"
+evidence = "examples/rust-constructs/constructs.rs:86"
+pattern = 'each_sample\(samples, \|s\| \{'
+proof = "crates/ingest/tests/rust_constructs.rs::closures_are_functions_of_their_own_called_by_their_own_generic_copy"
+caveat = "A closure whose body rustc maps no region in (`|_| count += 1` here) gets no coverage record. butterfly lists it as a function with no record, inside the function it is written in, on the line the DWARF gives: its object code is analysed but projected neither covered nor uncovered, and carries no-coverage-record gaps, while the line it is written on reads covered through the enclosing function's counts. Whether it ran is not established without a trace. The construct inventory counts closures lexically."
+
+[[row]]
+id = "rust.prologue-frame"
+area = "language"
+group = "Rust"
+name = "Stack frames recovered from the prologue, since rustc writes no .su file"
+state = "caveats"
+example = "rust-lib"
+evidence = "examples/rust-lib/build.sh:23"
+pattern = '^rustc --edition 2021 -g -Copt-level=0 src/main\.rs -o build/flight$'
+proof = "crates/ingest/tests/e2e_rust_constructs.rs::every_rust_frame_is_a_prologue_estimate_labelled_as_one"
+caveat = "A prologue-derived frame is an estimate, labelled as one, not a size the compiler reported. The test asserts the label, not the byte counts, which are the host code generator's; prologue reading itself is unit-tested on hand-written instruction lists."
+
+[[row]]
+id = "rust.atomic-global"
+area = "language"
+group = "Rust"
+name = "Atomic statics as the globals of data coupling"
+state = "caveats"
+example = "rust-lib"
+evidence = "examples/rust-lib/src/state.rs:17"
+pattern = 'pub static ALTITUDE: AtomicI32'
+proof = "crates/ingest/tests/e2e_rust_constructs.rs::the_atomic_statics_are_globals_of_the_data_coupling"
+caveat = "At -Copt-level=0 every access is a call into core::sync::atomic, so a function is recorded as taking the static's address, not as reading or writing it. Which functions those are is asserted on macOS/AArch64 and x86-64 Linux only; elsewhere the test asserts only that the statics are globals of the image."
+
+[[row]]
+id = "rust.fn-pointer-table"
+area = "language"
+group = "Rust"
+name = "Dispatch through a table of fn pointers"
+state = "caveats"
+example = "rust-lib"
+evidence = "examples/rust-lib/src/sched.rs:31"
+pattern = 'static TASKS: \[fn\(i32\) -> i32'
+proof = "crates/ingest/tests/e2e_rust_constructs.rs::the_task_table_dispatch_is_an_indirect_call"
+caveat = "The call is an indirect-branch gap whose candidates are the functions its caller takes the address of and those held in any data it reads, each table read as far as its symbol extends; here the caller takes no address, so they are the table's. An ELF symbol has a size, so on x86-64 Linux they are exactly the three; a Mach-O symbol has none, so on macOS the table is read up to the next data symbol and the candidates take in the std vtables after it. That the table's entries are among them, and are held by the table, is asserted on macOS/AArch64 and x86-64 Linux only. In a position-independent ELF image the table's words are `R_*_RELATIVE` relocations the file holds as zero; they are read through the relocation, and until #325 G1 they were not, so on Linux the call had no candidates."
+
+[[row]]
+id = "rust.no-std-bare-metal"
+area = "language"
+group = "Rust"
+name = "A `no_std`, `no_main` bare-metal image (aarch64-unknown-none-softfloat), analysed beside a host build of the same crate"
+state = "caveats"
+example = "rust-qemu"
+evidence = "examples/rust-qemu/src/main.rs:17"
+pattern = 'cfg_attr\(target_os = "none", no_std\)'
+proof = "crates/ingest/tests/e2e_rust_qemu.rs::a_qemu_trace_yields_measured_instruction_and_outcome_coverage"
+caveat = "Verified locally, not in hosted CI, and only on a host that has QEMU (see feature.measured-coverage). A bare-metal image has no filesystem to write a profile to, so the source coverage comes from an instrumented host build and is matched to the target image by demangled name: sound only while both compile the same source the same way, and anything behind cfg(target_os = \"none\") has no projection at all."
+tracking = [164]
+
+[[row]]
+id = "rust.level-a-route"
+area = "language"
+group = "Rust"
+name = "The Level A route: object-level branch outcomes measured from a trace, where rustc supplies no MC/DC"
+state = "caveats"
+example = "rust-qemu"
+evidence = "examples/rust-qemu/src/monitor.rs:38"
+pattern = 'if alt > 45_000'
+proof = "crates/ingest/tests/e2e_rust_qemu.rs::the_trace_confirms_what_was_never_run"
+caveat = "Verified locally, not in hosted CI, and only on a host that has QEMU (see feature.measured-coverage). Measured object branch outcomes are not MC/DC: whether they satisfy objective 5 for a given compiler and options is the argument CAST-17 describes, and it is the applicant's to make. The trace is from QEMU, an emulator and not the target, on one CPU; butterfly is not a qualified tool."
+tracking = [164]
+
+[[row]]
+id = "rust.panic-path-measured"
+area = "language"
+group = "Rust"
+name = "Bounds- and overflow-check panic paths: projected covered by their line, measured never executed"
+state = "caveats"
+example = "rust-qemu"
+evidence = "examples/rust-qemu/src/monitor.rs:59"
+pattern = 'acc = acc \+ samples\[i\]'
+proof = "crates/ingest/tests/e2e_rust_qemu.rs::the_trace_contradicts_the_projection_on_the_panic_paths"
+caveat = "Verified locally, not in hosted CI, and only on a host that has QEMU (see feature.measured-coverage). At -Copt-level=0 only. The trace shows the panic paths did not run; it does not show whether they need to be, so they remain object code with no source counterpart for a reviewer to account for (see rust.runtime-check for their classification)."
+tracking = [164]
+
+[[row]]
+id = "rust.indirect-call-measured"
+area = "language"
+group = "Rust"
+name = "An indirect call through a fn-pointer table, resolved to the targets a trace actually reached"
+state = "caveats"
+example = "rust-qemu"
+evidence = "examples/rust-qemu/src/monitor.rs:86"
+pattern = 'pub static COMMANDS: \[fn\(i32\) -> i32; 3\]'
+proof = "crates/ingest/tests/e2e_rust_qemu.rs::the_trace_confirms_what_was_never_run"
+caveat = "Verified locally, not in hosted CI, and only on a host that has QEMU (see feature.measured-coverage). The measured targets are those of one traced campaign, not the set the call can reach: a candidate the trace never reached (cmd_hold here) stays address-taken, not proven unreachable."
+tracking = [164]
+
+[[row]]
+id = "rust.generics"
+area = "language"
+group = "Rust"
+name = "Generic functions and their monomorphised copies"
+state = "caveats"
+example = "rust-constructs"
+evidence = "examples/rust-constructs/constructs.rs:14"
+pattern = 'pub fn limit<T: PartialOrd \+ Copy>'
+proof = "crates/ingest/tests/rust_constructs.rs::each_monomorphised_copy_is_projected_from_its_own_record"
+caveat = "Each copy (`limit::<i32>`, `limit::<u64>`) is a function of its own, with its own symbol, branch record, line figures and object-code projection. The file's source view is the sum over the copies, as llvm-cov makes it: a line reads covered there if any copy ran it. Copies that share one name (the same crate built twice) are merged into one function instead."
+
+[[row]]
+id = "rust.dyn-dispatch"
+area = "language"
+group = "Rust"
+name = "Trait objects and dyn dispatch"
+state = "caveats"
+example = "rust-constructs"
+evidence = "examples/rust-constructs/constructs.rs:63"
+pattern = 'law\.apply\(x\)'
+proof = "crates/ingest/tests/rust_constructs.rs::a_dyn_call_is_an_indirect_branch_and_the_impls_behind_it_are_not_dead"
+caveat = "The call through the vtable is an indirect-branch gap with no static candidates: the vtable arrives as an argument, so the target set is not resolved (as for cpp.virtual-dispatch). The impls it reaches have no direct caller and are not reported dead, because their vtables hold their addresses; that, and that the call has no static candidates, is asserted on macOS/AArch64 and x86-64 Linux only. On Linux a vtable's words are `R_*_RELATIVE` relocations the file holds as zero; until #325 G1 they were not read, and every such impl was a dead-code candidate there. An impl whose type is never built (Bypass here) has no vtable, and rustc emits no code for it."
+
+[[row]]
+id = "rust.macro-rules"
+area = "language"
+group = "Rust"
+name = "macro_rules! expansions that contain decisions"
+state = "caveats"
+example = "rust-constructs"
+evidence = "examples/rust-constructs/constructs.rs:105"
+pattern = 'if \$v >= \$lo && \$v <= \$hi'
+proof = "crates/ingest/tests/rust_constructs.rs::a_macro_expanded_decision_lands_on_the_definition_with_no_count"
+caveat = "rustc emits no branch region for a condition inside a macro expansion, so the decision's outcomes are not in the source coverage at all. The image's line table puts the expanded code on the macro's definition, not on each use, so every use lands on that one line. That line has no count: its object code is projected neither covered nor uncovered and carries not-instrumented and extra-object-branch gaps, while the using lines read covered. Only a trace measures the outcomes (see rust.level-a-route)."
+
+# ════════════════════════════════════════════════════════════════ toolchain
+
+[[row]]
+id = "toolchain.clang"
+area = "toolchain"
+group = "Toolchain"
+name = "clang with llvm-cov source-based coverage"
+state = "supported"
+example = "c"
+evidence = "examples/c/build.sh:17"
+pattern = '-fprofile-instr-generate -fcoverage-mapping'
+proof = "crates/ingest/tests/e2e_demo_c.rs::demo_c_end_to_end"
+
+[[row]]
+id = "toolchain.gcc-gcov"
+area = "toolchain"
+group = "Toolchain"
+name = "GCC with gcov's JSON export"
+state = "caveats"
+example = "c-gcc"
+evidence = "examples/c-gcc/build.sh:69"
+pattern = '--coverage'
+proof = "crates/cli/tests/doctor.rs::a_gcc_instrumented_binary_is_recognised_and_not_analysed"
+caveat = "butterfly reads no MC/DC from gcov: condition coverage from `-fcondition-coverage` is noted in a caveat, not read as MC/DC, and gcov does not say which outcome of a branch is the true one. The reader is proven on hand-written exports (crates/ingest/tests/gcov.rs); the only tests that read the built example are the doctor's, which are compiled on Linux alone, and ci-local builds the example on Linux alone."
+
+[[row]]
+id = "toolchain.rustc-nightly"
+area = "toolchain"
+group = "Toolchain"
+name = "rustc nightly with -Cinstrument-coverage -Zcoverage-options=condition"
+state = "caveats"
+example = "rust"
+evidence = "examples/rust/build.sh:11"
+pattern = '-Cinstrument-coverage -Zcoverage-options=condition'
+proof = "crates/ingest/tests/e2e_rust_constructs.rs::nightly_supplies_the_coverage_and_stable_builds_the_analysed_image"
+caveat = "No MC/DC (see rust.mcdc), and the LLVM tools must be nightly's own: stable's llvm-profdata cannot merge nightly's profile. CI pins nightly-2026-08-10; another nightly may map coverage regions differently."
+
+[[row]]
+id = "toolchain.rustc-stable"
+area = "toolchain"
+group = "Toolchain"
+name = "rustc stable, for the uninstrumented target build"
+state = "caveats"
+example = "rust"
+evidence = "examples/rust/build.sh:15"
+pattern = 'rustc --edition 2021 -g -Copt-level=0 demo\.rs'
+proof = "crates/ingest/tests/e2e_rust_constructs.rs::nightly_supplies_the_coverage_and_stable_builds_the_analysed_image"
+caveat = "Stable emits no branch regions, so it builds the image that is analysed and nightly supplies the coverage. The two are joined by demangled name, which is sound only while both compile the same source the same way."
+
+# ═════════════════════════════════════════ architecture and object format
+
+[[row]]
+id = "arch.aarch64"
+area = "architecture"
+group = "Architecture"
+name = "AArch64"
+state = "caveats"
+example = "c"
+proof = "crates/ingest/tests/vars.rs::demo_c_carries_variables_with_ordered_accesses"
+caveat = "The only architecture with variable attribution. Hosted CI runs on x86-64 alone since #147, so this is exercised only when the suite runs on an AArch64 host, such as ci-local on Apple silicon."
+
+[[row]]
+id = "arch.x86-64"
+area = "architecture"
+group = "Architecture"
+name = "x86-64"
+state = "caveats"
+example = "c-lib"
+proof = "crates/ingest/tests/c_lib_arch.rs::x86_64_c_lib_couples_globals_and_reports_the_unbounded_chain"
+caveat = "The proof is compiled only on an x86-64 host and asserts the example's globals, their readers and writers, and the chain left unbounded by the call through the task table; examples/c's variables are asserted there too (crates/ingest/tests/vars.rs). It has run on an x86-64 Mach-O build under Rosetta and in hosted CI on the x86-64 ELF image it builds. Variables are listed but not attributed: each says the architecture is why. Frame sizes and totals are the compiler's, so only the shape of the chain is asserted."
+tracking = [113]
+
+[[row]]
+id = "arch.riscv"
+area = "architecture"
+group = "Architecture"
+name = "RISC-V"
+state = "not-supported"
+reason = "Not yet demonstrated: there are RISC-V paths for branch conditions, prologues and data references, but no example, and the data-reference scanner has no test at all."
+tracking = [161]
+
+[[row]]
+id = "format.macho"
+area = "architecture"
+group = "Object format"
+name = "Mach-O"
+state = "caveats"
+example = "c"
+proof = "crates/ingest/tests/macho_entry.rs::a_macho_entry_lands_on_the_entry_symbol"
+caveat = "Read from a real linked image only on a macOS host; hosted CI is Linux since #147."
+
+[[row]]
+id = "format.elf"
+area = "architecture"
+group = "Object format"
+name = "ELF"
+state = "caveats"
+example = "c"
+proof = "crates/ingest/tests/dup_cpp_symbols.rs::anonymous_namespace_copies_keep_their_own_unit"
+caveat = "Every example CI builds on Linux is an ELF image and hosted CI runs the example suites on it, but most of their assertions are written to hold on either format; few test an ELF-only path on an example: the C runtime's startup stubs may stay unattributed (dup_cpp_symbols.rs), a constructor's C1 and D1 are aliases of its body, so only D0 is a variant (cpp_constructs.rs), and a table is read to its symbol's size, so the fn-pointer table's candidates are exactly its three (e2e_rust_constructs.rs). The `.eh_frame` LSDA index, `R_*_GLOB_DAT` GOT calls, `.rodata` jump tables, data coupling and `.stack_sizes` are each asserted on two small lld-linked ELF images built from hand-written assembly (req_e_elf_images.rs), not on an example."
+tracking = [278]
+
+[[row]]
+id = "format.pe-coff"
+area = "architecture"
+group = "Object format"
+name = "PE / COFF"
+state = "not-supported"
+reason = "Not handled: butterfly recognises its header and would pass it to the generic object parser, but nothing beyond that is written for it, no example builds one and no test reads one."
+tracking = [161]
+
+# ═════════════════════════════════════════════════════════════════ features
+# One row per showcase section of #150 (#173-#199). `tracking` names the
+# section's issue first, then any known gap.
+
+[[row]]
+id = "feature.overview"
+area = "feature"
+group = "Viewer"
+name = "Overview dashboard"
+state = "caveats"
+example = "c-per-test"
+proof = "ui/browser/checks/requirements.cjs::overview-renders"
+caveat = "The browser check asserts that the Overview renders on the example, not the figures it shows; ci-local runs it only where Playwright is installed."
+tracking = [173]
+
+[[row]]
+id = "feature.flow"
+area = "feature"
+group = "Viewer"
+name = "Flow: the object-level control-flow graph with coverage overlay"
+state = "caveats"
+example = "c-per-test"
+proof = "ui/browser/checks/requirements.cjs::every-function-tab-renders"
+caveat = "The browser check asserts that the tab renders for every function, not what the graph shows; block and edge construction is proven on hand-written instruction lists."
+tracking = [174]
+
+[[row]]
+id = "feature.calls"
+area = "feature"
+group = "Viewer"
+name = "Calls: the expandable call graph"
+state = "caveats"
+example = "c-callgraph"
+evidence = "examples/c-callgraph/depth.c:73"
+pattern = 'typedef int \(\*op_fn\)\(int\)'
+proof = "ui/callgraph.test.cjs::a function with neighbours of its own is offered for expansion, a leaf is not"
+caveat = "CI builds the fixture made for this graph, but the graph model is proven on hand-built evidence: the tests that ingest the fixture check its counts, its gaps and that a repeated ingest gives the same answer, not the calls it draws."
+tracking = [175]
+
+[[row]]
+id = "feature.object"
+area = "feature"
+group = "Viewer"
+name = "Object: every instruction with its source line and projected coverage"
+state = "supported"
+example = "c"
+evidence = "examples/c/demo.c:60"
+pattern = 'if \(n == 0\)'
+proof = "crates/ingest/tests/e2e_demo_c.rs::every_instruction_of_average_carries_its_source_line_and_projected_status"
+tracking = [176]
+
+[[row]]
+id = "feature.gaps"
+area = "feature"
+group = "Viewer"
+name = "Gaps and their recorded resolutions"
+state = "supported"
+example = "c"
+proof = "crates/cli/tests/check_gate.rs::a_recorded_justification_counts_as_resolved"
+tracking = [177]
+
+[[row]]
+id = "feature.mcdc"
+area = "feature"
+group = "Viewer"
+name = "MC/DC: executed vectors and independence pairs per decision"
+state = "caveats"
+example = "c"
+evidence = "examples/c/demo.c:23"
+pattern = 'gear_down && speed_ok'
+proof = "crates/ingest/tests/e2e_demo_c.rs::demo_c_end_to_end"
+caveat = "On the example the test asserts the decision's conditions and which of them have an independence pair, not the executed vectors or which vectors form each pair: an export in the LLVM 18 MC/DC record layout, which Apple clang writes, carries no vectors at all. How vectors and pairs are read is proven on hand-built evidence (crates/ingest/tests/mcdc_vectors_by_test.rs)."
+tracking = [178]
+
+[[row]]
+id = "feature.stack"
+area = "feature"
+group = "Viewer"
+name = "Stack: frames from the compiler's .su files and the worst-case chain"
+state = "supported"
+example = "c"
+evidence = "examples/c/build.sh:23"
+pattern = '-fstack-usage'
+proof = "crates/cli/tests/build_stack_usage.rs::every_variant_ingests_its_stack_usage_file"
+tracking = [179]
+
+[[row]]
+id = "feature.data"
+area = "feature"
+group = "Viewer"
+name = "Data coupling: which functions read and write each global"
+state = "caveats"
+example = "c-lib"
+evidence = "examples/c-lib/src/state.c:7"
+pattern = 'flight_state_t g_state'
+proof = "crates/ingest/tests/synthetic.rs::datarefs_aarch64_and_x86"
+caveat = "On the example, crates/ingest/tests/c_lib_arch.rs asserts who reads and writes each global, but on ELF it checks only the same-file accessors of `g_state`: a reference from another translation unit is loaded through the GOT, which the data-reference scanner does not follow."
+tracking = [180]
+
+[[row]]
+id = "feature.variables"
+area = "feature"
+group = "Viewer"
+name = "Variables: parameters and locals with every access, in static order"
+state = "caveats"
+example = "c"
+evidence = "examples/c/demo.c:44"
+pattern = 'uint32_t acc = 0'
+proof = "crates/ingest/tests/vars.rs::demo_c_carries_variables_with_ordered_accesses"
+caveat = "AArch64 only; on any other architecture the panel says why it is empty."
+tracking = [181, 163]
+
+[[row]]
+id = "feature.changes"
+area = "feature"
+group = "Viewer"
+name = "Change impact: the commits that touched a function and what they oblige"
+state = "supported"
+example = "c"
+proof = "crates/cli/tests/changes_cli.rs::c42b_each_commit_names_the_functions_it_touched"
+tracking = [182]
+
+[[row]]
+id = "feature.requirement-text"
+area = "feature"
+group = "Viewer"
+name = "Requirement text beside the code"
+state = "supported"
+example = "c-per-test"
+evidence = "examples/c-per-test/llr.yaml:19"
+pattern = 'id: LLR-LIM-001'
+proof = "crates/cli/tests/serve_requirements.rs::the_statement_comes_back_and_the_analysis_only_on_request"
+tracking = [183]
+
+[[row]]
+id = "feature.requirements-tests"
+area = "feature"
+group = "Viewer"
+name = "Requirements x tests, and the claims gate that checks a project's own traceability"
+state = "supported"
+example = "c-per-test"
+evidence = "examples/c-per-test/llr.yaml:53"
+pattern = '^\s+- src/tests\.c::t_clamp$'
+proof = "crates/cli/tests/claims_gate.rs::the_fixtures_wrong_test_claim_is_caught_and_exits_three"
+tracking = [184]
+
+[[row]]
+id = "feature.per-test"
+area = "feature"
+group = "Viewer"
+name = "Per-test attribution: which test entered which function and line"
+state = "supported"
+example = "c-per-test"
+evidence = "examples/c-per-test/build.sh:31"
+pattern = 'LLVM_PROFILE_FILE="build/prof/\$t\.profraw"'
+proof = "crates/ingest/tests/per_test.rs::a_function_lists_the_tests_that_entered_it"
+tracking = [184]
+
+[[row]]
+id = "feature.file-view"
+area = "feature"
+group = "Viewer"
+name = "File view: the whole file, folded to findings"
+state = "caveats"
+example = "c"
+proof = "ui/lines.test.cjs::a reached line whose statement never ran is not painted covered"
+caveat = "How a line is painted is proven on hand-written evidence; the File view is opened on an example only by the showcase screenshot capture, and no test asserts how it paints a line there."
+tracking = [185]
+
+[[row]]
+id = "feature.compare"
+area = "feature"
+group = "Viewer"
+name = "Comparing optimisation levels as switchable variants"
+state = "caveats"
+example = "c"
+evidence = "examples/c/butterfly-build.toml:18"
+pattern = '^\[\[variant\]\]'
+proof = "ui/browser/checks/variants.cjs::a-superseded-load-never-commits-over-a-newer-one"
+caveat = "The browser check covers switching between variants, not what the Compare page says about them, and the one Rust test that reads the built variants, crates/ingest/tests/macho_entry.rs, is allowed to skip when they are absent."
+tracking = [186]
+
+[[row]]
+id = "feature.report"
+area = "feature"
+group = "Command line"
+name = "The static HTML report"
+state = "supported"
+example = "c-per-test"
+proof = "crates/cli/tests/report_requirements.rs::the_report_quotes_each_requirement_and_names_its_baseline"
+tracking = [187, 156]
+
+[[row]]
+id = "feature.gates"
+area = "feature"
+group = "Command line"
+name = "Gates: `butterfly check` thresholds and no-regression"
+state = "supported"
+example = "c"
+proof = "crates/cli/tests/check_gate.rs::a_gap_ceiling_breach_names_the_worst_functions_and_exits_three"
+tracking = [188]
+
+[[row]]
+id = "feature.doctor"
+area = "feature"
+group = "Command line"
+name = "`butterfly doctor`: is this build directory fit to analyse"
+state = "caveats"
+example = "c"
+proof = "crates/cli/tests/doctor.rs::a_complete_clang_build_passes_and_names_what_it_skipped"
+caveat = "The refusal this command exists for -- a directory holding only the instrumented binary, which must exit 3 -- is asserted on Linux alone, against the GCC example."
+tracking = [189]
+
+[[row]]
+id = "feature.run"
+area = "feature"
+group = "Command line"
+name = "`butterfly run`: build, doctor, ingest and report in one command, then serve"
+state = "not-supported"
+reason = "Not claimed as support: the showcase runs it once on examples/c (V18) and prints what it reported, but no test drives an example through it; its stop conditions are tested on throwaway projects (crates/cli/tests/run_pipeline.rs)."
+tracking = [190]
+
+[[row]]
+id = "feature.build-systems.cmake"
+area = "feature"
+group = "Build systems"
+name = "CMake"
+state = "caveats"
+example = "build-systems/cmake"
+proof = "scripts/verify-build-systems.sh"
+caveat = "Not built in CI: scripts/verify-build-systems.sh, which scripts/ci-local.sh runs, checks this build's evidence equals examples/c-lib's own in its counts of files, functions, symbols, lines, branches and gaps (not byte for byte), and that ingest refuses the build with one stack-usage file taken away; where this build system's tool is not installed it prints a named SKIP and the run still passes."
+
+[[row]]
+id = "feature.build-systems.make"
+area = "feature"
+group = "Build systems"
+name = "GNU make"
+state = "caveats"
+example = "build-systems/make"
+proof = "scripts/verify-build-systems.sh"
+caveat = "Not built in CI: scripts/verify-build-systems.sh, which scripts/ci-local.sh runs, checks this build's evidence equals examples/c-lib's own in its counts of files, functions, symbols, lines, branches and gaps (not byte for byte), and that ingest refuses the build with one stack-usage file taken away; where this build system's tool is not installed it prints a named SKIP and the run still passes."
+
+[[row]]
+id = "feature.build-systems.bazel"
+area = "feature"
+group = "Build systems"
+name = "Bazel"
+state = "caveats"
+example = "build-systems/bazel"
+proof = "scripts/verify-build-systems.sh"
+caveat = "Not built in CI: scripts/verify-build-systems.sh, which scripts/ci-local.sh runs, checks this build's evidence equals examples/c-lib's own in its counts of files, functions, symbols, lines, branches and gaps (not byte for byte), and that ingest refuses the build with one stack-usage file taken away; where this build system's tool is not installed it prints a named SKIP and the run still passes."
+
+[[row]]
+id = "feature.baseline"
+area = "feature"
+group = "Command line"
+name = "Analysis baseline: what changed in flags, sources and object code since a recorded build"
+state = "caveats"
+example = "c"
+proof = "crates/ingest/tests/synthetic.rs::baseline_compare_detects_flags_and_source_changes"
+caveat = "Flag and object-code changes are proven on hand-built evidence only; on the example, crates/ingest/tests/baseline_discovery_e2e.rs plants a changed source hash in a copied baseline and asserts the function is reported source-changed. CI also runs `butterfly baseline` and `butterfly changes --baseline` on the example and checks only that they exit cleanly."
+tracking = [192]
+
+[[row]]
+id = "feature.go-to-definition"
+area = "feature"
+group = "Viewer"
+name = "Go to definition, from a ctags index"
+state = "supported"
+example = "c-lib"
+proof = "crates/ingest/tests/tags.rs::produce_indexes_functions_headers_and_types"
+tracking = [193]
+
+[[row]]
+id = "feature.provenance"
+area = "feature"
+group = "Honesty"
+name = "Provenance: every input named and hashed, with the caveats that apply"
+state = "supported"
+example = "c"
+proof = "crates/ingest/tests/e2e_demo_c.rs::provenance_names_every_input_of_the_example_and_carries_the_projection_caveat"
+tracking = [194]
+
+[[row]]
+id = "feature.source-revision"
+area = "feature"
+group = "Honesty"
+name = "Source revision: the git commit or SVN revision, and whether the files the build used are that revision's, judged by their hashes where the VCS allows it"
+state = "not-supported"
+reason = "Not yet demonstrated: ingest records it for git and SVN, and it is tested on temporary repositories (git: clean, modified, submodules, SHA-256, fsmonitor; SVN: mixed revisions, switched, sparse, externals, keywords and eol-style, a locked or newer-format working copy), but no example shows a clean and a modified build. SVN files with svn:keywords, svn:eol-style or svn:special are judged by svn status, not by hash."
+tracking = [304]
+
+[[row]]
+id = "feature.security"
+area = "feature"
+group = "Honesty"
+name = "Security posture: loopback by default, tokens, read-only network listeners"
+state = "caveats"
+example = "c"
+proof = "crates/cli/tests/serve_exposure.rs::a_network_listener_refuses_to_start_without_insecure_http"
+caveat = "The proof needs no fixture and opens no example: `butterfly serve` refuses a plain-HTTP network listener before any evidence is read, so the test has no fixture to skip for. The example is named for the other half -- a token demanded on API requests, exercised against examples/c in crates/cli/tests/serve_auth.rs on the evidence and variant-listing routes -- and that test skips where the example has not been built."
+tracking = [195]
+
+[[row]]
+id = "feature.dead-code"
+area = "feature"
+group = "Viewer"
+name = "Dead-code candidates in the linked image"
+state = "supported"
+example = "c"
+evidence = "examples/c/demo.c:77"
+pattern = 'int32_t legacy_scale'
+proof = "crates/ingest/tests/e2e_demo_c.rs::demo_c_end_to_end"
+tracking = [196]
+
+[[row]]
+id = "feature.source-to-object-review"
+area = "feature"
+group = "Viewer"
+name = "The source-to-object review record"
+state = "caveats"
+example = "c-per-test"
+proof = "ui/browser/checks/review.cjs::a-review-saves-reloads-and-can-be-removed"
+caveat = "Saving and removing a review is proven in a real browser, which ci-local runs only where Playwright is installed. The construct inventory that guides the review picks its vocabulary from the file extension, so C++ written in a `.h` header is read with the C vocabulary."
+tracking = [196, 162]
+
+[[row]]
+id = "feature.navigation"
+area = "feature"
+group = "Viewer"
+name = "Finding your way around: search, shortcuts, jumping between uncovered regions"
+state = "caveats"
+example = "c-per-test"
+proof = "ui/browser/checks/requirements.cjs::search-narrows-and-navigates"
+caveat = "Search is asserted on the example and the digit tab shortcuts on hand-written evidence; nothing asserts `j`/`k` or the `]`/`[` jump between uncovered regions."
+tracking = [197, 157]
+
+[[row]]
+id = "feature.measured-coverage"
+area = "feature"
+group = "Honesty"
+name = "Measured object coverage from an execution trace (--trace): QEMU -d in_asm,exec,nochain"
+state = "caveats"
+example = "rust-qemu"
+evidence = "examples/rust-qemu/build.sh:34"
+pattern = '-d in_asm,exec,nochain'
+proof = "crates/ingest/tests/e2e_rust_qemu.rs::a_qemu_trace_yields_measured_instruction_and_outcome_coverage"
+caveat = "Verified locally, not in hosted CI, and only on a host that has the toolchain: scripts/ci-local.sh builds this example and runs its suite where qemu-system-aarch64, the aarch64-unknown-none-softfloat target and a nightly with llvm-tools are all present, and prints a named SKIP where they are not -- so a green local run on a host without them has not exercised this row. Coverage is exact but execution counts are an upper bound: QEMU logs a block on entry, and an abandoned entry that cannot be proven impossible is still counted. One single-CPU trace from an emulator; multi-CPU logs are read per CPU and proven on hand-written logs only, as are the execlog and address-list formats. The viewer's Measured overlay is tested on hand-built evidence (ui/measured.test.cjs), not on this example."
+tracking = [164]
+
+[[row]]
+id = "feature.quickstart"
+area = "feature"
+group = "Documentation"
+name = "Quickstart: from a built example to evidence, a summary and a report"
+state = "caveats"
+example = "c"
+proof = "scripts/ci-local.sh"
+caveat = "CI runs the documented commands from ingest to report on the example as a smoke test: each must exit cleanly and the report must be non-empty, and nothing more is asserted of them."
+tracking = [199]
