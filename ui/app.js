@@ -1095,7 +1095,7 @@ function renderProvenance(p) {
   for (const i of pv.inputs) t.append(h('tr', {}, h('td', {}, i.role), h('td', { class: 'mono' }, i.path.split('/').slice(-2).join('/')), h('td', { class: 'mono', title: i.sha256 }, i.sha256.slice(0, 16) + '…'), h('td', {}, i.bytes)));
   p.append(t, h('h3', { style: 'margin-top:14px' }, 'Caveats'), h('ul', { class: 'caveat-list' }, pv.caveats.map(c => h('li', {}, c))),
     h('p', { class: 'muted', style: 'margin-top:14px;font-size:11px;border-top:1px solid var(--line);padding-top:8px' },
-      `butterfly ${pv.toolVersion} — copyright (c) 2026 Dhakshnamoorthy Durgaraj · free and open source under MIT OR Apache-2.0 · evidence and reports are your project's data.`));
+      `butterfly ${pv.toolVersion} · free and open source under MIT OR Apache-2.0 · evidence and reports are your project's data.`));
 }
 
 /* ---------------- sidebar ---------------- */

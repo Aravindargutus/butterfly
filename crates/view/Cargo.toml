@@ -3,7 +3,6 @@ name = "butterfly-view"
 description = "Read-only web browser over a butterfly evidence database (presentation only)"
 version.workspace = true
 edition.workspace = true
-authors.workspace = true
 license.workspace = true
 repository.workspace = true
 
