@@ -9,6 +9,7 @@
 
 mod common;
 
+use butterfly_model::{Changes, Commit, Evidence};
 use std::fs;
 use std::path::PathBuf;
 use std::process::{Command, Output};
@@ -50,7 +51,17 @@ fn with_changes(tag: &str) -> Option<(PathBuf, PathBuf)> {
 
 #[test]
 fn t01_impact_prints_obligations_and_exits_zero_by_default() {
-    let Some((d, e)) = with_changes("print") else { return };
+    let Some(input) = evidence() else { return };
+    let mut ev: Evidence = serde_json::from_slice(&fs::read(input).unwrap()).unwrap();
+    // One unticketed edit keeps both the blocker and the advisory inside the
+    // 300-row text preview, regardless of the history of this checkout.
+    let function = ev.functions.iter_mut().find(|f| f.name == "clamp_altitude").unwrap();
+    function.commits = vec![0];
+    let commit = Commit { subject: "Adjust altitude limit".into(), functions: vec![function.id], ..Default::default() };
+    ev.changes = Some(Changes { commits: vec![commit], unticketed: vec![0], ..Default::default() });
+    let d = scratch("print");
+    let e = d.join("ev.json");
+    fs::write(&e, serde_json::to_vec(&ev).unwrap()).unwrap();
     let o = run(&["impact", e.to_str().unwrap()]);
     assert!(o.status.success(), "{}", err(&o));
     let s = out(&o);
@@ -74,7 +85,7 @@ fn t03_json_output_is_the_impact_record() {
     let o = run(&["impact", e.to_str().unwrap(), "--json"]);
     assert!(o.status.success(), "{}", err(&o));
     let v: serde_json::Value = serde_json::from_str(&out(&o)).expect("stdout is JSON");
-    assert!(v["obligations"].as_array().map(|a| !a.is_empty()).unwrap_or(false));
+    assert!(v["obligations"].as_array().unwrap().iter().any(|row| row["kind"] == "retest-requirement"), "full JSON should include the requirement advisory");
     assert_eq!(v["bounded"], false);
     assert!(v["bySeverity"]["blocker"].as_u64().unwrap() > 0);
     let _ = fs::remove_dir_all(d);
