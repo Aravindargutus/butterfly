@@ -3,7 +3,6 @@ name = "butterfly-ingest"
 description = "Parses compiler/coverage artifacts into a butterfly evidence database (qualification-path component)"
 version.workspace = true
 edition.workspace = true
-authors.workspace = true
 license.workspace = true
 repository.workspace = true
 

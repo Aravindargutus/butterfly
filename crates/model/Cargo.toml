@@ -3,7 +3,6 @@ name = "butterfly-model"
 description = "Evidence database schema shared by butterfly ingest and view"
 version.workspace = true
 edition.workspace = true
-authors.workspace = true
 license.workspace = true
 repository.workspace = true
 

@@ -5,7 +5,6 @@ members = ["crates/model", "crates/ingest", "crates/view", "crates/cli", "crates
 [workspace.package]
 version = "0.2.0"
 edition = "2021"
-authors = ["Dhakshnamoorthy Durgaraj"]
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/Aravindargutus/butterfly"
 homepage = "https://github.com/Aravindargutus/butterfly"

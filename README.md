@@ -2,7 +2,7 @@
 
 [![ci](https://github.com/Aravindargutus/butterfly/actions/workflows/ci.yml/badge.svg)](https://github.com/Aravindargutus/butterfly/actions/workflows/ci.yml)
 
-*Copyright (c) 2026 Dhakshnamoorthy Durgaraj — free and open source, MIT OR Apache-2.0*
+*Licensed under MIT OR Apache-2.0. See [NOTICE](NOTICE) for attribution.*
 
 A read-only web browser over compiled evidence for DO-178C structural coverage
 and object-code analysis. Not an editor. Point it at what your compiler,
@@ -1954,8 +1954,6 @@ current tree.
 
 ## Copyright and license
 
-Copyright (c) 2026 Dhakshnamoorthy Durgaraj.
-
 butterfly is free and open source software, licensed under either of
 
 * Apache License, Version 2.0 ([`LICENSE-APACHE`](LICENSE-APACHE))
@@ -1970,4 +1968,4 @@ license, shall be dual licensed as above, without any additional terms or
 conditions.
 
 The evidence, reports and resolutions that butterfly *produces* are your
-project's data and carry no licence from Dhakshnamoorthy Durgaraj.
+project's data. Butterfly’s software license applies to the tool itself.

@@ -3,7 +3,6 @@ name = "butterfly-testsupport"
 description = "Test-only helpers shared by the workspace's suites. Not part of the product: no crate here depends on it outside [dev-dependencies]."
 version.workspace = true
 edition.workspace = true
-authors.workspace = true
 license.workspace = true
 repository.workspace = true
 publish = false

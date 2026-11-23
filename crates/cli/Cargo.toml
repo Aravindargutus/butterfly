@@ -3,7 +3,6 @@ name = "butterfly"
 description = "DO-178C structural-coverage and object-code evidence browser"
 version.workspace = true
 edition.workspace = true
-authors.workspace = true
 license.workspace = true
 repository.workspace = true
 
