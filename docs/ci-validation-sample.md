@@ -1,1 +1,1 @@
-# CI validation sample  
+# CI validation sample
