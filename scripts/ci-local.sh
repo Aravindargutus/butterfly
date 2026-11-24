@@ -322,7 +322,7 @@ D="$WORK/e2e"; mkdir -p "$D"
 step "ingest"   cargo run --locked -q -- ingest examples/c/build --source-root examples/c -o "$D/e.json"
 step "summary"  cargo run --locked -q -- summary "$D/e.json"
 step "baseline" cargo run --locked -q -- baseline "$D/e.json" -o "$D/b.json"
-step "changes"  cargo run --locked -q -- changes "$D/e.json" --since HEAD~1 --baseline "$D/b.json"
+step "changes"  bash scripts/ci-changes.sh "$D/e.json" "$D/b.json"
 step "impact"   cargo run --locked -q -- impact "$D/e.json" --json
 step "report"   cargo run --locked -q -- report "$D/e.json" -o "$D/r.html"
 printf '%-46s' "report is non-empty"; [ -s "$D/r.html" ] && echo "PASS" || { echo "FAIL"; fail=1; }

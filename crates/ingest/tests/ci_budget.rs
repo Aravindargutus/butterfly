@@ -10,14 +10,14 @@
 //! request ran the full Linux suite: work in progress that
 //! `scripts/ci-local.sh` validates anyway, and pull requests stacked on
 //! another branch that are tested again once retargeted to `main`. So,
-//! for every workflow a pull request can start:
+//! for the path-filtered auxiliary workflows (audit, docs-numbers and showcase):
 //!
 //! * it starts only for a pull request whose base is `main`;
 //! * every job is skipped while the pull request is a draft. A skipped
 //!   job costs no minutes, and a draft cannot be merged. Marking it ready
 //!   for review is a listed trigger, so that is when it runs.
 //!
-//! Workflows that no pull request starts (`release.yml`) are out of scope.
+//! The required PR gate runs on every PR and selects the reusable full CI suite by path.
 
 use std::path::PathBuf;
 use yaml_rust2::{Yaml, YamlLoader};
@@ -51,7 +51,7 @@ fn strings(y: &Yaml) -> Vec<String> {
 #[test]
 fn a_pull_request_starts_hosted_ci_only_against_main() {
     let mut seen = 0;
-    for (name, doc) in workflows() {
+    for (name, doc) in pr_workflows() {
         let pr = &triggers(&doc)["pull_request"];
         if pr.is_badvalue() {
             continue;
@@ -67,12 +67,12 @@ fn a_pull_request_starts_hosted_ci_only_against_main() {
             assert!(types.iter().any(|x| x == t), "{name}: `pull_request.types` must list {t:?} (marking a draft ready is when it runs): {types:?}");
         }
     }
-    assert!(seen >= 4, "expected ci, showcase, docs-numbers and audit to be started by pull requests; found {seen}");
+    assert!(seen >= 3, "expected showcase, docs-numbers and audit to be started by pull requests; found {seen}");
 }
 
 #[test]
 fn no_job_runs_on_a_draft_pull_request() {
-    for (name, doc) in workflows() {
+    for (name, doc) in pr_workflows() {
         if triggers(&doc)["pull_request"].is_badvalue() {
             continue;
         }
@@ -280,7 +280,7 @@ fn outcome(wf: &Yaml, ctx: &Value) -> Option<(Vec<String>, String)> {
 }
 
 fn pr_workflows() -> Vec<(String, Yaml)> {
-    workflows().into_iter().filter(|(_, d)| !triggers(d)["pull_request"].is_badvalue()).collect()
+    workflows().into_iter().filter(|(name, d)| name != "pr-gate.yml" && !triggers(d)["pull_request"].is_badvalue()).collect()
 }
 
 /// A ready pull request stacked on another branch runs nothing; retargeting
@@ -330,4 +330,20 @@ fn drafts_run_nothing_and_ready_pull_requests_and_main_run_everything() {
             assert_eq!(run.len(), all, "{name}: a push to main must run every job");
         }
     }
+}
+
+#[test]
+fn required_gate_is_triggered_for_all_pr_paths_and_bases() {
+    let (_, gate) = workflows().into_iter().find(|(n, _)| n == "pr-gate.yml").unwrap();
+    let pr = &triggers(&gate)["pull_request"];
+    for filter in ["paths", "paths-ignore", "branches", "branches-ignore"] {
+        assert!(pr[filter].is_badvalue(), "required PR workflow must be unfiltered: {filter}");
+    }
+    for event in ["opened", "synchronize", "reopened", "edited"] {
+        assert!(strings(&pr["types"]).iter().any(|s| s == event));
+    }
+    let job = &gate["jobs"]["gate"];
+    assert_eq!(job["name"].as_str(), Some("Butterfly PR check"));
+    assert_eq!(job["if"].as_str(), Some("always()"));
+    assert_eq!(strings(&job["needs"]), vec!["scope", "suite"]);
 }

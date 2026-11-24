@@ -33,25 +33,7 @@ on:
       - ".github/ISSUE_TEMPLATE/**"
   # a hosted run started on purpose, e.g. on a draft (#308)
   workflow_dispatch:
-  # Hosted minutes are budgeted (#308): only pull requests into main start
-  # a run, and only once they are ready for review (the draft guard on
-  # every job below); stacked and draft pull requests are validated with
-  # scripts/ci-local.sh instead.
-  pull_request:
-    branches: [main]
-    # `edited` is for one transition only: a ready pull request stacked on
-    # another branch, retargeted to main, emits `edited` and nothing else.
-    # Any other edit (title, description) is filtered out by the job guard
-    # and kept out of the concurrency group of real runs (#309 review).
-    types: [opened, synchronize, reopened, ready_for_review, edited]
-    # the same list as above, written out: YAML anchors are not something to
-    # bet a workflow's ability to parse on
-    paths-ignore:
-      - "**/*.md"
-      - "docs/**"
-      - "LICENSE-*"
-      - "NOTICE"
-      - ".github/ISSUE_TEMPLATE/**"
+  workflow_call:
 
 # One run per branch and event, and a newer run cancels an older one --
 # `main` included. Merges come in bursts: on 2026-09-15 four landed within
@@ -63,9 +45,7 @@ on:
 # not in this file: it must not be cancelled, so it lives in audit.yml
 # (review of #147).
 concurrency:
-  # an edit that changed nothing but text runs in a group of its own, so it
-  # can never cancel (or queue behind) a real run (#309 review)
-  group: ci-${{ github.event_name }}-${{ github.ref }}${{ (github.event.action == 'edited' && !github.event.changes.base) && format('-noop-{0}', github.run_id) || '' }}
+  group: ci-suite-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
@@ -82,9 +62,6 @@ jobs:
   # the test job. `-D warnings` here matches the RUSTFLAGS the build already
   # uses, so a lint cannot pass CI by being merely a warning.
   lint:
-    # a draft is work in progress, validated locally, and an `edited` event
-    # counts only when it retargeted the base; skipped jobs cost nothing (#308)
-    if: ${{ !github.event.pull_request.draft && (github.event.action != 'edited' || github.event.changes.base) }}
     name: rustfmt + clippy
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -112,9 +89,6 @@ jobs:
   # environment, a macOS leg has to come back; until then
   # `scripts/ci-local.sh` on a Mac is the check for anyone who needs one.
   test:
-    # a draft is work in progress, validated locally, and an `edited` event
-    # counts only when it retargeted the base; skipped jobs cost nothing (#308)
-    if: ${{ !github.event.pull_request.draft && (github.event.action != 'edited' || github.event.changes.base) }}
     name: test (ubuntu-24.04)
     runs-on: ubuntu-24.04
     # a hung server test would otherwise bill for up to six hours
@@ -349,7 +323,7 @@ jobs:
         run: |
           cargo run --locked -- summary examples/c/build/evidence.json
           cargo run --locked -- baseline examples/c/build/evidence.json -o examples/c/build/butterfly-baseline.json
-          cargo run --locked -- changes examples/c/build/evidence.json --since HEAD~1 --baseline examples/c/build/butterfly-baseline.json
+          bash scripts/ci-changes.sh examples/c/build/evidence.json examples/c/build/butterfly-baseline.json
           cargo run --locked -- impact examples/c/build/evidence.json --json > /dev/null
           cargo run --locked -- report examples/c/build/evidence.json -o examples/c/build/report.html
           test -s examples/c/build/report.html
