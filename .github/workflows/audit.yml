@@ -1,0 +1,80 @@
+# SPDX-License-Identifier: MIT OR Apache-2.0
+# Copyright (c) 2026 Dhakshnamoorthy Durgaraj
+#
+# `cargo audit`, on its own, for two reasons.
+#
+# It is the slowest job the project runs -- `rustsec/audit-check` builds
+# cargo-audit from source, about six minutes -- and its answer depends on
+# exactly two things: the lockfile and the advisory database. Neither changes
+# because a source file did, so `paths` runs it only when a manifest or the
+# lockfile actually moves, and the weekly schedule covers the database moving
+# on its own.
+#
+# And it must never be cancelled. In `ci.yml` a newer run cancels an older
+# one, `main` included, which is right for a test suite: the newest run tests
+# the newest tree. It is wrong for an audit. If push A changes Cargo.lock and
+# push B changes only code, B would cancel A's audit and B's own run would
+# not audit anything -- so the dependency set on `main` would never be
+# audited at all (review of #147). Here each run belongs to the commit that
+# changed the dependencies, and finishes.
+name: audit
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "Cargo.lock"
+      - "Cargo.toml"
+      - "crates/*/Cargo.toml"
+  # Hosted minutes are budgeted (#308): only pull requests into main start
+  # a run, and only once they are ready for review (the draft guard on
+  # every job below); stacked and draft pull requests are validated with
+  # scripts/ci-local.sh instead.
+  pull_request:
+    branches: [main]
+    # `edited` is for one transition only: a ready pull request stacked on
+    # another branch, retargeted to main, emits `edited` and nothing else.
+    # Any other edit (title, description) is filtered out by the job guard
+    # and kept out of the concurrency group of real runs (#309 review).
+    types: [opened, synchronize, reopened, ready_for_review, edited]
+    # the same list, written out: YAML anchors are not something to bet a
+    # workflow's ability to parse on
+    paths:
+      - "Cargo.lock"
+      - "Cargo.toml"
+      - "crates/*/Cargo.toml"
+  # The advisory database moves on its own schedule, not with our commits.
+  schedule:
+    - cron: "17 6 * * 1"
+  # so an audit can be demanded without touching a manifest
+  workflow_dispatch:
+
+# One audit per ref, and never cancelled: see above.
+concurrency:
+  # an edit that changed nothing but text runs in a group of its own, so it
+  # can never cancel (or queue behind) a real run (#309 review)
+  group: audit-${{ github.ref }}${{ (github.event.action == 'edited' && !github.event.changes.base) && format('-noop-{0}', github.run_id) || '' }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    # audit-check reports scheduled advisories as issues and can publish
+    # check results. Scope these permissions to this job, not all workflows.
+    permissions:
+      contents: read
+      issues: write
+      checks: write
+    # a draft is work in progress, validated locally, and an `edited` event
+    # counts only when it retargeted the base; skipped jobs cost nothing (#308)
+    if: ${{ !github.event.pull_request.draft && (github.event.action != 'edited' || github.event.changes.base) }}
+    name: cargo audit
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: rustsec/audit-check@69366f33c96575abad1ee0dba8212993eecbe998 # v2.0.0
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}

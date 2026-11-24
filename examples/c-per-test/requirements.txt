@@ -1,0 +1,10 @@
+# The requirements this component claims to satisfy — the universe the
+# matrix is checked against. One ID per line. LLR-LIM-004 is deliberately
+# implemented nowhere: the matrix must say so, and only a list like this
+# makes that knowable, because tags cannot prove absence.
+LLR-LIM-001
+LLR-LIM-002
+LLR-LIM-003
+LLR-LIM-004
+LLR-LIM-005
+LLR-LIM-006

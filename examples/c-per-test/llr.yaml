@@ -1,0 +1,96 @@
+# Low-level requirements for the limits component.
+#
+# Written in the shape a real project uses (ARINC 653 certification corpus):
+# a `requirements:` list of records carrying the statement, its kind, its
+# status, and the project's own traceability claim.
+#
+# The claims here are deliberately *not* all true. butterfly derives the same
+# two mappings independently -- requirement to code from the `@satisfies`
+# tags, test to code from the per-test coverage exports -- so this file is
+# one of two accounts of the same facts, and the disagreements are the point:
+#
+#   LLR-LIM-001  claim agrees with the measurement
+#   LLR-LIM-002  claims a test that never reaches the code (#57's headline)
+#   LLR-LIM-003  derived: no parent, and that is correct for it
+#   LLR-LIM-004  planned, implemented nowhere: expected, not an orphan
+
+requirements:
+
+  - id: LLR-LIM-001
+    text: >-
+      An altitude presented for limiting shall be returned unchanged when it
+      lies within the envelope, and shall be returned as the nearer bound
+      when it lies outside it.
+    type: low-level
+    status: implemented
+    traceability:
+      parent: HLR-LIM-001
+      code:
+        - src/limits.c::clamp_alt
+      tests:
+        - src/tests.c::t_clamp
+        - src/tests.c::t_ceiling
+    rationale: >-
+      Both edges are stated because a limiter that clamps only one of them
+      passes a careless test and fails in flight.
+
+  - id: LLR-LIM-002
+    text: >-
+      A climb rate shall be accepted only when its magnitude lies within the
+      configured bound, in either direction of travel.
+    type: low-level
+    status: implemented
+    traceability:
+      parent: HLR-LIM-001
+      code:
+        - src/limits.c::rate_ok
+      # Deliberately wrong: t_clamp exercises clamp_alt and never calls
+      # rate_ok, so this claim asserts a verification that did not happen.
+      # The evidence says NO TEST for this requirement. A traceability
+      # argument built by hand looks complete here; the measurement does not
+      # agree, and that disagreement is what #57 exists to surface.
+      tests:
+        - src/tests.c::t_clamp
+    rationale: >-
+      Magnitude rather than value, so a descent beyond the bound is refused
+      on the same footing as a climb.
+
+  - id: LLR-LIM-003
+    text: >-
+      Every fault code the component can report shall map to a stable name,
+      including codes outside the defined set.
+    # Derived: no higher-level requirement asked for a name table. It comes
+    # out of a design decision, so it has no parent and DO-178C 5.1.2.h
+    # sends it to the safety assessment for exactly that reason.
+    type: derived
+    status: implemented
+    traceability:
+      code:
+        - src/limits.c::fault_name
+      tests:
+        - src/tests.c::t_faults
+    safety:
+      related: true
+      failure_condition: minor
+      effect: >-
+        An unnamed fault code reaches the crew as a bare number, which is a
+        diagnosis delayed rather than a diagnosis given.
+    verification_criteria: >-
+      Exercised with a defined code and with one outside the set.
+
+  - id: LLR-LIM-004
+    text: >-
+      The component shall report the envelope currently in force when asked.
+    type: low-level
+    # Planned, so no code implements it yet. This is the expected state of a
+    # requirement not yet built, and must not read as an orphan: 212 of the
+    # 304 requirements in the corpus this schema came from are planned.
+    status: planned
+    traceability:
+      parent: HLR-LIM-002
+      code: []
+      tests: []
+
+# LLR-LIM-005 and LLR-LIM-006 are absent on purpose: the source tags
+# band_of's lines with them, so `butterfly claims` reports each as a tag
+# citing an ID this document does not hold.

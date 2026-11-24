@@ -1,0 +1,894 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: MIT OR Apache-2.0 -->
+<!-- Copyright (c) 2026 Dhakshnamoorthy Durgaraj -->
+<!--
+  The butterfly handbook. Open it in a browser; it needs no server and no
+  build step. Written for developers, testers and certification engineers
+  alike -- the reading paths at the top say which sections are whose.
+  Kept next to the code it describes so it versions with the tool.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Butterfly</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Serif:wght@600&display=swap">
+
+<style>
+:root {
+  /* light: green-biased paper and ink, deep pine accent */
+  --ground:      #f6f8f6;
+  --surface:     #ffffff;
+  --surface-2:   #edf2ee;
+  --ink:         #131a16;
+  --ink-2:       #495951;
+  --ink-3:       #6e7f76;
+  --rule:        #d6e0d9;
+  --rule-2:      #e7ede9;
+  --accent:      #1e6b45;
+  --accent-soft: #e0efe6;
+  --blocker:     #b3261e;
+  --blocker-bg:  #fbeae9;
+  --major:       #9a5a00;
+  --major-bg:    #fbf1e0;
+  --shadow:      0 1px 2px rgba(19,26,22,.06), 0 8px 24px -12px rgba(19,26,22,.16);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ground:      #0e1411;
+    --surface:     #151d18;
+    --surface-2:   #1c2721;
+    --ink:         #dce5df;
+    --ink-2:       #a2b0a8;
+    --ink-3:       #7c8b83;
+    --rule:        #293630;
+    --rule-2:      #212c26;
+    --accent:      #5fbe8c;
+    --accent-soft: #123024;
+    --blocker:     #f2857c;
+    --blocker-bg:  #331b19;
+    --major:       #e3a950;
+    --major-bg:    #2f2415;
+    --shadow:      0 1px 2px rgba(0,0,0,.4), 0 8px 24px -12px rgba(0,0,0,.6);
+  }
+}
+:root[data-theme="dark"] {
+  --ground:      #0e1411;
+  --surface:     #151d18;
+  --surface-2:   #1c2721;
+  --ink:         #dce5df;
+  --ink-2:       #a2b0a8;
+  --ink-3:       #7c8b83;
+  --rule:        #293630;
+  --rule-2:      #212c26;
+  --accent:      #5fbe8c;
+  --accent-soft: #123024;
+  --blocker:     #f2857c;
+  --blocker-bg:  #331b19;
+  --major:       #e3a950;
+  --major-bg:    #2f2415;
+  --shadow:      0 1px 2px rgba(0,0,0,.4), 0 8px 24px -12px rgba(0,0,0,.6);
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--ground);
+  color: var(--ink);
+  font-family: "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  font-size: 16px;
+  line-height: 1.62;
+  -webkit-font-smoothing: antialiased;
+}
+
+.wrap {
+  display: grid;
+  grid-template-columns: 232px minmax(0, 1fr);
+  gap: 56px;
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 0 32px 120px;
+}
+
+/* ---------------- index rail ---------------- */
+.rail { position: sticky; top: 0; align-self: start; max-height: 100vh; overflow-y: auto; padding: 40px 0 40px; }
+.rail-title {
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 11px; letter-spacing: .13em; text-transform: uppercase;
+  color: var(--ink-3); margin: 0 0 14px;
+}
+.rail ol { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 1px; }
+.rail a {
+  display: block; padding: 4px 10px 4px 12px;
+  font-size: 13.5px; color: var(--ink-2); text-decoration: none;
+  border-left: 2px solid var(--rule-2); line-height: 1.4;
+}
+.rail a:hover { color: var(--accent); border-left-color: var(--accent); background: var(--surface-2); }
+.rail a:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.rail .sub { padding-left: 24px; font-size: 12.5px; color: var(--ink-3); }
+
+/* ---------------- masthead ---------------- */
+header.mast { padding: 72px 0 40px; border-bottom: 1px solid var(--rule); }
+.eyebrow {
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 11.5px; letter-spacing: .14em; text-transform: uppercase;
+  color: var(--accent); margin: 0 0 18px;
+}
+h1 {
+  font-family: "IBM Plex Serif", ui-serif, Georgia, serif;
+  font-weight: 600; font-size: clamp(38px, 5.2vw, 56px); line-height: 1.06;
+  letter-spacing: -.02em; margin: 0 0 20px; text-wrap: balance; color: var(--ink);
+}
+.standfirst { font-size: 19px; line-height: 1.58; color: var(--ink-2); max-width: 62ch; margin: 0 0 28px; }
+.standfirst strong { color: var(--ink); font-weight: 600; }
+
+.facts { display: flex; flex-wrap: wrap; gap: 8px; }
+.fact {
+  font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 12px;
+  padding: 5px 10px; border: 1px solid var(--rule); border-radius: 3px;
+  color: var(--ink-2); background: var(--surface);
+}
+.fact b { color: var(--ink); font-weight: 500; }
+
+/* ---------------- reading paths ---------------- */
+.paths { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 14px; margin: 32px 0 0; }
+.path {
+  background: var(--surface); border: 1px solid var(--rule); border-radius: 4px;
+  padding: 16px 18px 18px; box-shadow: var(--shadow);
+}
+.path h4 {
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 11px; letter-spacing: .12em; text-transform: uppercase;
+  color: var(--accent); margin: 0 0 8px; font-weight: 500;
+}
+.path p { margin: 0; font-size: 14px; line-height: 1.55; color: var(--ink-2); }
+.path a { color: var(--ink); text-decoration: none; border-bottom: 1px solid var(--rule); }
+.path a:hover { border-bottom-color: var(--accent); color: var(--accent); }
+
+/* ---------------- sections ---------------- */
+section { padding: 52px 0 0; scroll-margin-top: 24px; }
+h2 {
+  font-family: "IBM Plex Serif", ui-serif, Georgia, serif;
+  font-weight: 600; font-size: 27px; line-height: 1.2; letter-spacing: -.012em;
+  margin: 0 0 6px; color: var(--ink); text-wrap: balance;
+}
+h2 .cite {
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 12px; letter-spacing: .04em; color: var(--ink-3);
+  font-weight: 400; margin-left: 10px; white-space: nowrap;
+}
+h3 {
+  font-size: 16px; font-weight: 600; margin: 30px 0 8px; color: var(--ink);
+  letter-spacing: -.005em;
+}
+h4 {
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 11.5px; letter-spacing: .11em; text-transform: uppercase;
+  color: var(--ink-3); font-weight: 500; margin: 26px 0 8px;
+}
+p { margin: 0 0 14px; max-width: 68ch; }
+.lede { color: var(--ink-2); font-size: 17px; max-width: 66ch; margin-bottom: 20px; }
+ul, ol.list { max-width: 68ch; padding-left: 20px; margin: 0 0 14px; }
+li { margin-bottom: 7px; }
+strong { font-weight: 600; }
+em { font-style: italic; color: var(--ink-2); }
+a { color: var(--accent); }
+
+code {
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: .875em; background: var(--surface-2); padding: 1.5px 5px;
+  border-radius: 3px; color: var(--ink); white-space: nowrap;
+}
+pre {
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  background: var(--surface); border: 1px solid var(--rule); border-radius: 4px;
+  padding: 15px 18px; overflow-x: auto; font-size: 13px; line-height: 1.65;
+  margin: 0 0 16px; color: var(--ink);
+}
+pre code { background: none; padding: 0; font-size: inherit; white-space: pre; }
+pre .c { color: var(--ink-3); }
+pre .k { color: var(--accent); }
+
+/* ---------------- tables ---------------- */
+.tw { overflow-x: auto; margin: 0 0 18px; border: 1px solid var(--rule); border-radius: 4px; background: var(--surface); }
+table { border-collapse: collapse; width: 100%; font-size: 14px; }
+th {
+  text-align: left; font-weight: 600; font-size: 11.5px; letter-spacing: .07em;
+  text-transform: uppercase; color: var(--ink-3); padding: 11px 14px;
+  border-bottom: 1px solid var(--rule); white-space: nowrap; background: var(--surface-2);
+}
+td { padding: 11px 14px; border-bottom: 1px solid var(--rule-2); vertical-align: top; color: var(--ink-2); }
+tr:last-child td { border-bottom: none; }
+td:first-child { color: var(--ink); }
+td.mono, th.mono, .mono { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 13px; }
+.num { font-variant-numeric: tabular-nums; text-align: right; }
+
+/* severity + status chips carry state in form, not only colour */
+.chip {
+  display: inline-block; font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 11px; letter-spacing: .04em; padding: 2px 7px; border-radius: 3px;
+  white-space: nowrap; font-weight: 500; border: 1px solid transparent;
+}
+.chip.blocker { color: var(--blocker); background: var(--blocker-bg); border-color: var(--blocker); }
+.chip.major   { color: var(--major);   background: var(--major-bg);   border-color: var(--major); }
+.chip.adv     { color: var(--ink-3);   background: var(--surface-2);  border-color: var(--rule); }
+/* green is the accent, so it also carries "this is fine" -- one meaning, one hue */
+.chip.good    { color: var(--accent);  background: var(--accent-soft); border-color: var(--accent); }
+/* an objective reference is a label, not a state: keep it quiet */
+.chip.obj     { color: var(--ink-3);   background: var(--surface-2);   border-color: var(--rule); }
+
+/* ---------------- call-outs ---------------- */
+.note {
+  border-left: 3px solid var(--accent); background: var(--surface);
+  padding: 14px 18px; margin: 0 0 18px; max-width: 68ch; border-radius: 0 4px 4px 0;
+}
+.note.warn { border-left-color: var(--major); }
+.note.stop { border-left-color: var(--blocker); }
+.note p:last-child { margin-bottom: 0; }
+.note .tag {
+  font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 11px;
+  letter-spacing: .11em; text-transform: uppercase; color: var(--ink-3);
+  display: block; margin-bottom: 6px;
+}
+
+/* ---------------- numbered steps (real sequences only) ---------------- */
+ol.steps { list-style: none; padding: 0; margin: 0 0 18px; counter-reset: s; max-width: 72ch; }
+ol.steps > li {
+  counter-increment: s; position: relative; padding-left: 42px; margin-bottom: 22px;
+}
+ol.steps > li::before {
+  content: counter(s); position: absolute; left: 0; top: 1px;
+  font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 12px;
+  width: 26px; height: 26px; line-height: 25px; text-align: center;
+  border: 1px solid var(--rule); border-radius: 50%; color: var(--accent); background: var(--surface);
+}
+ol.steps h3 { margin: 0 0 6px; }
+ol.steps p:last-child, ol.steps pre:last-child { margin-bottom: 0; }
+
+/* ---------------- two-up ---------------- */
+.duo { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin: 0 0 18px; }
+.card {
+  background: var(--surface); border: 1px solid var(--rule);
+  border-radius: 4px; padding: 16px 18px;
+}
+.card h4 { margin-top: 0; }
+.card p:last-child { margin-bottom: 0; }
+.card .big {
+  font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 22px;
+  color: var(--ink); font-variant-numeric: tabular-nums; display: block; margin-bottom: 2px;
+}
+
+hr.div { border: none; border-top: 1px solid var(--rule); margin: 8px 0 0; }
+
+footer {
+  margin-top: 72px; padding-top: 22px; border-top: 1px solid var(--rule);
+  font-size: 13px; color: var(--ink-3); max-width: 68ch;
+}
+
+@media (max-width: 900px) {
+  .wrap { grid-template-columns: minmax(0, 1fr); gap: 0; padding: 0 22px 80px; }
+  .rail { position: static; max-height: none; padding: 28px 0 0; }
+  .rail ol { flex-direction: row; flex-wrap: wrap; gap: 6px; }
+  .rail a { border-left: none; border: 1px solid var(--rule-2); border-radius: 3px; padding: 4px 9px; font-size: 12.5px; }
+  .rail .sub { display: none; }
+  header.mast { padding-top: 34px; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<nav class="rail">
+  <p class="rail-title">Contents</p>
+  <ol>
+    <li><a href="#what">What it is</a></li>
+    <li><a href="#idea">Projected vs measured</a></li>
+    <li><a href="#install">Install</a></li>
+    <li><a href="#workflow">The workflow</a></li>
+    <li><a href="#commands">Commands</a></li>
+    <li><a href="#views">What you see</a></li>
+    <li><a href="#gaps">Gap kinds</a></li>
+    <li><a href="#resolve">Resolving a gap</a></li>
+    <li><a href="#analyses">The other analyses</a></li>
+    <li><a href="#cia">Change impact</a></li>
+    <li class="sub"><a href="#cia-how">How attribution works</a></li>
+    <li class="sub"><a href="#cia-oblig">Obligations</a></li>
+    <li class="sub"><a href="#cia-ticket">The ticket view</a></li>
+    <li class="sub"><a href="#cia-stale">Staleness</a></li>
+    <li><a href="#baseline">Analysis baseline</a></li>
+    <li><a href="#source-revision">Source revision</a></li>
+    <li><a href="#config">Configuration</a></li>
+    <li><a href="#report">Report &amp; CI</a></li>
+    <li><a href="#examples">Worked examples</a></li>
+    <li><a href="#support">What is supported</a></li>
+    <li><a href="#limits">What it will not claim</a></li>
+    <li><a href="#security">Security</a></li>
+    <li><a href="#arch">Architecture</a></li>
+    <li><a href="#qual">Qualification</a></li>
+  </ol>
+</nav>
+
+<main>
+
+<header class="mast">
+  <p class="eyebrow">DO-178C structural coverage &amp; object-code evidence</p>
+  <h1>Butterfly</h1>
+  <p class="standfirst">A read-only browser over compiled evidence. Point it at what your compiler, coverage tools and simulator already produced, and it shows — per function — what a reviewer needs for Annex A tables A-5 and A-7. <strong>It is not an editor, and it does not run your tests.</strong> Its first job is to be honest about what the evidence cannot prove.</p>
+  <div class="facts">
+    <span class="fact"><b>8</b> commands</span>
+    <span class="fact"><b>137</b> tests</span>
+    <span class="fact"><b>6</b> worked examples</span>
+    <span class="fact">C · C++ <b>*</b> · Rust <b>*</b></span>
+    <span class="fact">MIT <b>OR</b> Apache-2.0</span>
+  </div>
+
+  <p class="standfirst"><b>*</b> <strong>C is the verified language.</strong> Six C examples build and are checked on every CI run. For C++ only the header-inline example runs in CI; templates, virtual dispatch, mangling and the library case rest on <code>examples/cpp</code> and <code>examples/cpp-lib</code>, which are run locally and not by CI. No Rust example runs in CI. Those examples work — they are expected to pass when run — but nothing automated would notice them regressing, so treat C++ and Rust as working rather than proven until <a href="https://github.com/dhaksh64/butterfly/issues/152">#152</a> brings them into CI.</p>
+
+  <div class="paths">
+    <div class="path">
+      <h4>If you manage the programme</h4>
+      <p>Read <a href="#idea">Projected vs measured</a>, <a href="#cia">Change impact</a> and <a href="#qual">Qualification</a>. Those three say what evidence you get, what re-certification will cost, and where the tool sits in DO-330.</p>
+    </div>
+    <div class="path">
+      <h4>If you write the code</h4>
+      <p>Start at <a href="#install">Install</a> and <a href="#workflow">The workflow</a>, then <a href="#gaps">Gap kinds</a> — that table explains everything the tool will flag in your function.</p>
+    </div>
+    <div class="path">
+      <h4>If you verify it</h4>
+      <p><a href="#views">What you see</a> and <a href="#resolve">Resolving a gap</a> are the working day. <a href="#report">Report &amp; CI</a> is what you hand to a DER.</p>
+    </div>
+  </div>
+</header>
+
+<section id="what">
+  <h2>What it is</h2>
+  <p class="lede">Butterfly reads three things your build already produces and turns them into a reviewable picture of one function at a time.</p>
+  <div class="tw">
+    <table>
+      <tr><th>Input</th><th>Where it comes from</th><th>What it gives</th></tr>
+      <tr><td class="mono">coverage&nbsp;export</td><td><code>llvm-cov export</code> JSON, from an <em>instrumented</em> build you ran</td><td>Line, branch and MC/DC coverage of the source</td></tr>
+      <tr><td class="mono">the&nbsp;binary</td><td>Your ordinary, <em>non-instrumented</em> build — the code you certify</td><td>Disassembly, symbols, DWARF line table, sections</td></tr>
+      <tr><td class="mono">a&nbsp;trace <span class="chip adv">optional</span></td><td>QEMU <code>-d in_asm,exec</code>, an execlog, or a list of addresses</td><td>What actually executed, instruction by instruction</td></tr>
+    </table>
+  </div>
+  <p>Everything else — stack usage <code>.su</code> files, <code>build-info.txt</code>, the project config, the analysis baseline, the change-history cache — is discovered automatically when you point <code>ingest</code> at a build directory.</p>
+</section>
+
+<section id="idea">
+  <h2>Projected versus measured <span class="cite">the central idea</span></h2>
+  <p class="lede">This is the one concept worth understanding before anything else, and it is what separates butterfly from a coverage percentage.</p>
+
+  <p>Your coverage tool measured <em>source</em> lines and branches. Your certification authority, at Level A, asks about <em>object code</em> — the instructions that actually ship. Butterfly maps the first onto the second through the DWARF line table. That mapping is a <strong>projection</strong>, not a measurement: nothing counted those instructions executing.</p>
+
+  <div class="note">
+    <span class="tag">The consequence</span>
+    <p>A green instruction means <em>“implied by source coverage”</em>, never <em>“observed to execute”</em>. Butterfly says so in the footer of every page that shows the projection and in every exported report. The footer follows the overlay: with a trace imported and <em>Measured</em> selected it says the colours are measured, from which trace, and what a trace still does not show; with no overlay it says that none is applied. Its first job is to list every place the projection cannot be trusted. Those places are called <strong>gaps</strong>.</p>
+  </div>
+
+  <p>Feed it an execution trace and the same views switch to <strong>measured</strong>: real per-instruction counts, real branch outcomes, and a <strong>disagreement</strong> count wherever the projection said one thing and the hardware did another. Measured evidence is strictly stronger, and it is the practical route to Level A for Rust, where the compiler no longer emits MC/DC records at all.</p>
+
+  <h3>Why this matters in one screen</h3>
+  <p>The C example compiles the same function at four optimisation levels. Source coverage is <strong>identical at all four</strong> — 57 of 69 lines, 27 of 34 branches. The object code is not:</p>
+  <div class="tw">
+    <table>
+      <tr><th><code>clamp_altitude</code></th><th class="num">Object blocks</th><th>Gaps</th><th>What happened</th></tr>
+      <tr><td class="mono">-O0</td><td class="num">8</td><td><span class="chip good">none</span></td><td>The object CFG mirrors the source</td></tr>
+      <tr><td class="mono">-O1 · -O2 · -Os</td><td class="num">1</td><td><span class="chip major">2 predicated-decision</span></td><td>Compiled branchless with two <code>csel</code> instructions — the source decisions have no object branch to cover</td></tr>
+    </table>
+  </div>
+  <p>A coverage percentage cannot see that difference. That is the argument for object-code analysis at Level A, and butterfly's reason to exist.</p>
+</section>
+
+<section id="install">
+  <h2>Install</h2>
+  <h4>Prerequisites</h4>
+  <div class="tw">
+    <table>
+      <tr><th>What</th><th>Why</th><th>Check</th></tr>
+      <tr><td>Rust ≥ 1.85</td><td>To build butterfly</td><td class="mono">rustc --version</td></tr>
+      <tr><td><code>llvm-tools</code></td><td><code>llvm-objdump</code> reads the object code; <code>llvm-cov</code> and <code>llvm-profdata</code> produce the coverage</td><td class="mono">rustup component add llvm-tools</td></tr>
+      <tr><td>Your compiler</td><td>clang / clang++ for C and C++, rustc for Rust</td><td class="mono">clang --version</td></tr>
+    </table>
+  </div>
+  <pre><code><span class="c"># a single self-contained binary — the web UI is compiled in</span>
+git clone https://github.com/Aravindargutus/butterfly.git
+cd butterfly
+cargo install --path crates/cli</code></pre>
+
+  <div class="note warn">
+    <span class="tag">The one trap worth knowing</span>
+    <p>A raw profile carries a <strong>format version that <code>llvm-profdata</code> must match exactly</strong>. Mismatch it and you get <code>raw profile version mismatch … no profile can be merged</code> even though the file is right there. If you instrument with a system clang, point the scripts at that clang's own LLVM: <code>LLVM_BIN=/usr/lib/llvm-18/bin ./examples/c/build.sh</code>. Instrument with nightly Rust, use nightly's tools. CI does exactly this.</p>
+  </div>
+
+  <h4>Platform notes</h4>
+  <ul>
+    <li><strong>macOS</strong> keeps debug info in the <code>.o</code> files behind a debug map. A single-step compile-and-link runs <code>dsymutil</code> for you; <strong>a link of separate objects does not</strong>, and without the <code>.dSYM</code> the binary has no line table and every instruction lands in “no source line”. Run <code>dsymutil &lt;binary&gt;</code> after linking.</li>
+    <li><strong>Linux</strong> keeps DWARF in the binary. No extra step.</li>
+    <li><strong>Cross and bare-metal targets</strong> need nothing to run on your machine. Butterfly reads the export, the binary and an optional trace, so a target image analysed from a QEMU or hardware trace works the same way.</li>
+  </ul>
+</section>
+
+<section id="workflow">
+  <h2>The workflow</h2>
+  <p class="lede">Three commands from a build directory to a browser. Everything else is optional depth.</p>
+  <ol class="steps">
+    <li>
+      <h3>Build twice</h3>
+      <p>Once instrumented, to get coverage. Once clean — <em>that</em> is the object code under analysis. The split is the whole point: instrumentation changes the code, so it must not be the code you certify.</p>
+      <pre><code>./examples/c/build.sh</code></pre>
+    </li>
+    <li>
+      <h3>Ingest</h3>
+      <p>Artifacts become one <code>evidence.json</code>. Note that <code>-o</code> defaults to the current directory, not the build directory.</p>
+      <pre><code>butterfly ingest examples/c/build --source-root examples/c \
+    -o examples/c/build/evidence.json</code></pre>
+    </li>
+    <li>
+      <h3>Browse</h3>
+      <p>A local, loopback-only viewer. Several evidence files become switchable variants with a Compare page.</p>
+      <pre><code>butterfly serve examples/c/build/evidence.json   <span class="c"># http://127.0.0.1:8787/</span></code></pre>
+    </li>
+  </ol>
+  <p>For a re-certification answer, add the two commands that turn history into work: <code>butterfly changes … --since &lt;certified baseline&gt;</code> then <code>butterfly impact … --fail-on blocker</code>. Both are covered under <a href="#cia">Change impact</a>.</p>
+</section>
+
+<section id="commands">
+  <h2>Commands</h2>
+  <div class="tw">
+    <table>
+      <tr><th>Command</th><th>What it does</th></tr>
+      <tr><td class="mono">ingest &lt;dir&gt;</td><td>Read a build directory (or explicit <code>--coverage</code> / <code>--object</code>) and write <code>evidence.json</code>. Discovers the coverage export, the non-instrumented binary, <code>build-info.txt</code>, <code>*.su</code> stack files, a <code>*trace*.log</code>, <code>butterfly.toml</code>, the baseline and the change cache. Instrumented binaries are skipped automatically.</td></tr>
+      <tr><td class="mono">serve &lt;evidence…&gt;</td><td>The browser UI on <code>127.0.0.1:8787</code>. Several files = variants of the same sources, comparable side by side.</td></tr>
+      <tr><td class="mono">summary &lt;evidence&gt;</td><td>A one-screen textual roll-up, for CI logs.</td></tr>
+      <tr><td class="mono">report &lt;evidence&gt;</td><td>A self-contained HTML Software Verification Results report — 12 sections, no external assets.</td></tr>
+      <tr><td class="mono">baseline &lt;evidence&gt;</td><td>Freeze the analysis baseline (§4.4.2.c). Later ingests compare against it and flag stale analyses.</td></tr>
+      <tr><td class="mono">changes &lt;evidence&gt;</td><td>Read git history: the commits and tickets that touched each function, written back into the evidence with a cache beside it.</td></tr>
+      <tr><td class="mono">impact &lt;evidence&gt;</td><td>The re-verification obligations those changes create. No git needed. <code>--fail-on</code> exits 3 for CI; <code>--json</code> for machines; <code>--write</code> stores them.</td></tr>
+      <tr><td class="mono">build &lt;config.toml&gt;</td><td>Drive the compiler across several optimisation levels and compare them. Stamped <strong>EXPLORATORY</strong> — never certification evidence.</td></tr>
+    </table>
+  </div>
+  <p><code>butterfly &lt;command&gt; --help</code> is the authoritative option list.</p>
+</section>
+
+<section id="views">
+  <h2>What you see</h2>
+  <p class="lede">The left pane is always one function. The right pane is its source. Ten tabs: keys <code>1</code>–<code>9</code>, and <code>0</code> for the tenth.</p>
+  <div class="tw">
+    <table>
+      <tr><th>View</th><th>Objective</th><th>Content</th></tr>
+      <tr><td><strong>Flow</strong></td><td><span class="chip obj">A-7 obj 5–7</span></td><td>The object-level control-flow graph — real basic blocks, coloured by projected or measured coverage. Each block is named for the <em>source condition it tests</em> (<code>⑂ gear_down 1/3 · cbz w8</code>), so a three-condition <code>if</code> reads as three distinct blocks rather than the same line repeated six times. Blocks that hold only a jump are drawn as dashed connectors.</td></tr>
+      <tr><td><strong>Calls</strong></td><td><span class="chip obj">A-7 obj 8</span></td><td>Callers ← function → callees, with edges coloured by whether the call was exercised. Inlined callees appear dashed, folded-away calls dotted, and indirect call sites as <code>⇢ indirect</code> with their resolved or candidate targets.</td></tr>
+      <tr><td><strong>Object</strong></td><td><span class="chip obj">A-7 obj 9</span></td><td>Every instruction with its DWARF line, projected status, trace executions and gap markers. Compiler-generated instructions carry a <code>⚙</code> and their origin — prologue, epilogue, stack-protector, runtime-check — and deliberately carry <strong>no</strong> requirement chip.</td></tr>
+      <tr><td><strong>Gaps</strong></td><td><span class="chip obj">§6.4.4.2.b</span></td><td>Every finding where source coverage cannot describe the object code, plus projection-vs-trace disagreements, each with a resolution form.</td></tr>
+      <tr><td><strong>MC/DC</strong></td><td><span class="chip obj">A-7 obj 5</span></td><td>A truth table per decision: executed test vectors, and per-condition independence pairs with the two vectors that prove each one.</td></tr>
+      <tr><td><strong>Stack</strong></td><td><span class="chip obj">§6.3.4.f</span></td><td>Own frame, worst-case bound and the deepest call chain. Recursion, indirect calls, dynamic frames, undetermined frame sizes, over-deep chains and overflowing totals are flagged as <em>unbounded</em> rather than guessed at.</td></tr>
+      <tr><td><strong>Data</strong></td><td><span class="chip obj">§6.4.4.2.c</span></td><td>Globals this function reads, writes or takes the address of — and who else touches them.</td></tr>
+      <tr><td><strong>Variables</strong></td><td><span class="chip obj">§6.4.4.2.b</span></td><td>Every parameter and local, from the compiler's own <code>DW_AT_location</code> rather than from reading the source: kind, type, declaration line, and each instruction that reads, writes or takes its address — <strong>in static instruction order</strong>, which is the order those instructions appear in the image, by address. <strong>It is not an execution order</strong>: the attribution scans an address-sorted instruction list once, so a site inside a loop is listed once however often it repeats, a site inside a branch is listed whether or not it is ever reached, and two positions on one line say which instruction comes first in the image — not which ran first, nor that either ran at all. Read it as “where in the object code is this variable touched”, never as a read-before-write proof. Hovering a variable marks its declaration and every line it is touched on, each carrying its position in that static order; a line touched twice shows both. A variable the attribution could not follow — kept in a register, split across a location list, or in a non-AArch64 image — says so instead of showing an empty list, which would read as “never used”. The marking of the source is optional — a <strong>Variable marks</strong> toggle beside the coverage overlay switches it off and is remembered per browser. It hides the marks and nothing else: the panel still lists every access, and says which state it is in so that a hover doing nothing is explained rather than mysterious.</td></tr>
+      <tr><td><strong>Changes</strong></td><td><span class="chip obj">§12.1.1</span></td><td>Every commit that touched this function, one per line: date, ticket, author, subject, and whether that commit <em>added</em> or <em>modified</em> it — then the obligations it creates.</td></tr>
+    </table>
+  </div>
+
+  <h3>Beyond the function</h3>
+  <ul>
+    <li><strong>Overview</strong> — the Annex A roll-up, gaps by kind, image sections, deepest stack chains, the data-coupling table, change impact, and full provenance with a SHA-256 for every input.</li>
+    <li><strong>File view</strong> (press <code>f</code>) — the whole file instead of one function: a coverage minimap down the right edge, sticky function headers, a density gutter, a <em>requirement lens</em> that highlights every line implementing a tag, and a fold that collapses to <strong>findings only</strong> or <strong>uncovered only</strong>. On the multi-file library example that turns a 47-line file into 5 lines of work; <code>]</code> and <code>[</code> jump between uncovered regions.</li>
+    <li><strong>Compare</strong> — after <code>butterfly build</code>, the same function at every optimisation level side by side.</li>
+  </ul>
+  <p>Keys: <code>/</code> search · <code>j</code>/<code>k</code> next/previous function · <code>1</code>–<code>9</code> and <code>0</code> switch tab · <code>f</code> toggle function ⇄ file view · <code>]</code>/<code>[</code> next/previous uncovered region (file view) · <code>Esc</code> close. <code>j</code>/<code>k</code> and the digits act while a function is open; every key but <code>Esc</code> stands down while you are typing.</p>
+</section>
+
+<section id="gaps">
+  <h2>Gap kinds <span class="cite">§6.4.4.2.b</span></h2>
+  <p class="lede">A gap is a place where source coverage cannot describe the object code. Nine kinds, each with a specific cause.</p>
+  <div class="tw">
+    <table>
+      <tr><th>Kind</th><th>Meaning</th></tr>
+      <tr><td class="mono">predicated-decision</td><td>A source decision compiled to conditional-select, a table or merged code with no object-level branch — branch coverage has nothing to map onto.</td></tr>
+      <tr><td class="mono">extra-object-branch</td><td>More conditional branches in the object code than branch regions in the source on that line.</td></tr>
+      <tr><td class="mono">line-zero</td><td>DWARF maps the instruction to line 0 — compiler-generated.</td></tr>
+      <tr><td class="mono">no-source-line</td><td>The instruction has no line-table entry at all.</td></tr>
+      <tr><td class="mono">helper-call</td><td>A call outside the covered source set, classified as <code>runtime-check</code> (panics, bounds and stack checks — defensive, not dead code), <code>arith-helper</code>, <code>memory-helper</code>, <code>core-lib</code>, <code>libc</code> or <code>project-uncovered</code>.</td></tr>
+      <tr><td class="mono">indirect-branch</td><td>A jump table, tail call or function pointer: the target set must be established by analysis. A switch&rsquo;s jump table is read from the image and its targets drawn as edges, so for a switch what is left is to confirm the table is the switch&rsquo;s (<span class="mono">examples/c-switch</span>).</td></tr>
+      <tr><td class="mono">not-instrumented</td><td>Maps to a source line that carries no coverage count.</td></tr>
+      <tr><td class="mono">shared-line</td><td>A block whose instructions borrow source lines that do not describe it — a merged return or common epilogue. Reached only through a never-taken outcome, it is projected uncovered where line counts alone would mark it covered; entered unconditionally from a block that ran, it is projected covered where its borrowed line reads 0 (#270). Either way an inference, with the reasoning in the block note.</td></tr>
+      <tr><td class="mono">folded-call</td><td>A call written in the source with neither a call instruction nor an inlined subroutine in the object code: the compiler evaluated it away.</td></tr>
+      <tr><td class="mono">uncounted-variant</td><td>A C++ constructor or destructor variant the compiler emits beside the body (<code>C1</code>, <code>D1</code>, the deleting <code>D0</code>). It has no coverage counter of its own, so while the body ran, whether it did is not established: its instructions are projected unknown, not covered.</td></tr>
+    </table>
+  </div>
+</section>
+
+<section id="resolve">
+  <h2>Resolving a gap <span class="cite">§6.4.4.3</span></h2>
+  <p>A gap is not a defect — it is something a human must account for. Every gap, uncovered branch outcome, unproven MC/DC condition and dead-code candidate carries a <strong>Resolve</strong> button that records a category, a justification, an author and a date into a <code>resolutions.json</code> sidecar. The evidence itself is never modified.</p>
+  <div class="tw">
+    <table>
+      <tr><th>Category</th><th>Meaning</th></tr>
+      <tr><td class="mono">a</td><td>Shortcoming in requirements-based test cases or procedures</td></tr>
+      <tr><td class="mono">b</td><td>Inadequacy in software requirements</td></tr>
+      <tr><td class="mono">c</td><td>Extraneous code, including dead code</td></tr>
+      <tr><td class="mono">d1 · d2</td><td>Deactivated code, Category One and Category Two</td></tr>
+      <tr><td class="mono">analysis</td><td>Compiler-generated code justified by analysis <span class="chip obj">§6.4.4.2.b</span></td></tr>
+    </table>
+  </div>
+  <p>Separately, each function carries a <strong>source-to-object review record</strong> — traceable, analysed or not-traceable — which is the CAST-12 activity that A-7 objective 9 expects, with a sample-adequacy roll-up on the Overview.</p>
+</section>
+
+<section id="analyses">
+  <h2>The other analyses</h2>
+  <div class="duo">
+    <div class="card">
+      <h4>Stack <span class="chip obj">§6.3.4.f</span></h4>
+      <p>Frames come from <code>-fstack-usage</code> files, a <code>.stack_sizes</code> section, or prologue analysis when neither exists. Worst case is own frame plus the deepest chain of resolved direct calls. Recursion, indirect calls, dynamic frames, undetermined frame sizes, chains deeper than the analysable depth and overflowing totals are reported <strong>unbounded</strong> — never estimated.</p>
+    </div>
+    <div class="card">
+      <h4>Data coupling <span class="chip obj">A-7 obj 8</span></h4>
+      <p>Address-forming instruction sequences are decoded per architecture to find which globals each function reads, writes or takes the address of — and the Overview shows the reverse: every global with all of its accessors.</p>
+    </div>
+    <div class="card">
+      <h4>Dead code <span class="chip obj">§6.4.4.3.c</span></h4>
+      <p>A symbol is a candidate when nothing calls it, nothing takes its address (in code <em>or</em> data tables) and it is not the entry point. Executed-in-trace candidates are reported separately: they are reached by a path static analysis cannot see, so the mechanism must be identified.</p>
+    </div>
+    <div class="card">
+      <h4>Inlining &amp; folded calls</h4>
+      <p>DWARF inlined subroutines are attributed to their origin, so an inlined callee's instructions are not silently credited to the caller. A source call with no object counterpart at all becomes a <code>folded-call</code> gap.</p>
+    </div>
+    <div class="card">
+      <h4>Function pointers</h4>
+      <p>Indirect call sites get static candidates from address-taken symbols and data tables, and resolved targets from a trace. Mach-O chained fixups are decoded, so vtables and dispatch tables resolve rather than vanishing.</p>
+    </div>
+    <div class="card">
+      <h4>Instantiations</h4>
+      <p><code>llvm-cov</code> emits one record per instantiation — a template at several types, or a crate compiled twice. Records sharing a name and source range are merged, with counts and MC/DC vectors summed, and the count shown on the function header.</p>
+    </div>
+  </div>
+</section>
+
+<section id="cia">
+  <h2>Change impact <span class="cite">§12.1.1</span></h2>
+  <p class="lede">Recertification is where the money goes, and the expensive question is: <em>what must I re-verify after this change?</em> Butterfly answers it from the repository, the requirement tags and the evidence you already have.</p>
+  <pre><code>commit message ──regex──&gt; <span class="k">ticket</span>
+commit ────git log -L────&gt; <span class="k">function</span>          <span class="c">(follows drift and renames)</span>
+function ───@satisfies───&gt; <span class="k">requirement</span>
+function ──gaps / MC-DC / review / baseline──&gt; <span class="k">verification state</span></code></pre>
+  <p>The first three hops are the trace. The fourth is what makes it <em>impact</em> analysis rather than a changelog: <strong>ticket FCS-104 touched <code>clamp_i32</code>, which implements LLR-UTIL-001, whose source-to-object review was signed off against the old object code and is now void.</strong></p>
+
+  <h3 id="cia-how">How attribution works</h3>
+  <p>For every function, <code>git log -L &lt;start&gt;,&lt;end&gt;:&lt;file&gt;</code> lists the commits that touched its lines. <code>-L</code> follows the range through later edits above it <em>and</em> through file renames — which mapping diff hunks onto today's line numbers cannot do, because a single insertion above a function invalidates it.</p>
+  <p>Two things a walk over today's functions cannot see are found otherwise:</p>
+  <ul>
+    <li><strong>Deleted functions.</strong> The frozen baseline records where every certified function was. For one that no longer exists, <code>git blame --reverse</code> gives the last commit its lines existed in, and the first commit after that to touch the file is the one that removed it.</li>
+    <li><strong>Files with no functions.</strong> Every commit's <code>--name-status</code> is kept, so a ticket that changed only a header, a linker script or a build file — code that alters every includer's object code without touching a function — is not invisible.</li>
+  </ul>
+  <p><em>Added</em> is told from <em>modified</em> by reading each commit's diff of the function's own range: the oldest commit whose diff adds the signature line is the origin. A whole-file search is fooled by an identical signature elsewhere in the file — two types with the same <code>fn new</code> — which on a real 539-function kernel gave the wrong origin for 15 of them.</p>
+
+  <h3 id="cia-oblig">The obligations</h3>
+  <p>Mechanical rules. Each names the artefact it invalidates.</p>
+  <div class="tw">
+    <table>
+      <tr><th>Kind</th><th>Severity</th><th>Meaning</th></tr>
+      <tr><td class="mono">not-exercised</td><td><span class="chip blocker">blocker</span></td><td>The changed function never ran in the coverage run — the change has no test evidence at all</td></tr>
+      <tr><td class="mono">unticketed</td><td><span class="chip blocker">blocker</span></td><td>A commit touching it carries no ticket: change outside change control</td></tr>
+      <tr><td class="mono">no-requirement</td><td><span class="chip blocker">blocker</span></td><td>It traces to no requirement, so nothing says which tests to re-run</td></tr>
+      <tr><td class="mono">stale-review</td><td><span class="chip blocker">blocker</span></td><td>Its source-to-object review predates the change</td></tr>
+      <tr><td class="mono">stale-resolution</td><td><span class="chip blocker">blocker</span></td><td>A gap, condition, branch, line or dead-code justification on it predates the change</td></tr>
+      <tr><td class="mono">dead-changed</td><td><span class="chip blocker">blocker</span></td><td>It changed, and nothing in the image calls it</td></tr>
+      <tr><td class="mono">deleted</td><td><span class="chip blocker">blocker</span></td><td>A function the baseline certified no longer exists: its tests are obsolete and its callers changed</td></tr>
+      <tr><td class="mono">uncovered-lines</td><td><span class="chip major">major</span></td><td>Lines in it are not covered</td></tr>
+      <tr><td class="mono">mcdc-incomplete</td><td><span class="chip major">major</span></td><td>A decision in it is not MC/DC covered</td></tr>
+      <tr><td class="mono">untraced-file</td><td><span class="chip major">major</span></td><td>The ticket changed a file holding no function — every includer's object code is suspect</td></tr>
+      <tr><td class="mono">retest-requirement</td><td><span class="chip adv">advisory</span></td><td>Re-run the tests for this requirement</td></tr>
+      <tr><td class="mono">retest-caller</td><td><span class="chip adv">advisory</span></td><td>A caller must be re-tested (control coupling, one hop)</td></tr>
+      <tr><td class="mono">data-coupling</td><td><span class="chip adv">advisory</span></td><td>A reader of a global it writes must be re-tested (one hop)</td></tr>
+    </table>
+  </div>
+  <div class="note">
+    <span class="tag">A deliberate limit</span>
+    <p>Coupling is reported <strong>one hop out</strong>. Whether it propagates further is an architectural judgement about your system, and the tool does not make it for you — it says so in a caveat instead of guessing.</p>
+  </div>
+
+  <h3 id="cia-ticket">The ticket view</h3>
+  <p>Each ticket lists what it <strong>added</strong>, <strong>modified</strong> and <strong>deleted</strong>, plus every file its commits changed with the net status over the ticket and whether any function lives in it. On the Overview, in the report's <em>Change impact</em> section, and in <code>impact --json</code>. Commits with no ticket get their own table — code changed outside change control is a finding in its own right.</p>
+
+  <h3 id="cia-stale">Staleness</h3>
+  <p>The evidence records the HEAD its history was read at and the SHA-256 of every analysed source. <code>serve</code> compares both against the machine it runs on and counts resolutions written since the obligations were computed. If the repository moved on, a source changed on disk, a file has uncommitted edits, or a resolution was written, the Overview, the Changes tab, the top bar <em>and the startup log</em> say so — with the exact command to run. Stale attribution is never presented as current.</p>
+  <p>A source that cannot be <em>read</em> counts too, and is reported apart from one that changed: <strong>missing</strong> when it is no longer on this machine, <strong>unreadable</strong> when the read failed for another reason, each naming the file and why. Neither is a match. Treating a failed read as one is how a deleted source used to leave the attribution looking current &mdash; &ldquo;we could not tell&rdquo; is not &ldquo;it still agrees&rdquo;. Both are judged only inside the approved source root (<code>--source-root</code>). A source the evidence places outside it is a third case, <strong>not checked</strong>: it is never opened, and it gets the same answer whether or not it exists, so the check reveals nothing about files there (<a href="https://github.com/dhaksh64/butterfly/issues/248">#248</a>). Viewing evidence away from the tree it was built from therefore puts every source in that third category, which counts as stale and says to serve with <code>--source-root</code> at the tree the evidence was built from.</p>
+</section>
+
+<section id="baseline">
+  <h2>Analysis baseline <span class="cite">§4.4.2.c</span></h2>
+  <p>A new compiler, new options or new source constructs invalidate earlier coverage and traceability analyses. <code>butterfly baseline</code> freezes the environment and a per-function fingerprint — source hash, constructs, instruction and block counts, and where the function was. Keep it under configuration management.</p>
+  <p>An ingest given the baseline with <code>--baseline</code> compares against it and reports what changed: compiler, flags, architecture, constructs, and which functions changed in source or in object code &mdash; for a C++ constructor or destructor, in any of the variants the compiler emitted for it (<a href="https://github.com/dhaksh64/butterfly/issues/280">#280</a>). A <code>butterfly-baseline.json</code> left in the build directory it reads is discovered and compared the same way, without the flag (<a href="https://github.com/dhaksh64/butterfly/issues/238">#238</a>, fixed by <a href="https://github.com/dhaksh64/butterfly/pull/241">#241</a>); an ingest with neither does no comparison at all. Review records made before a change are marked <strong>STALE</strong>, and a red caveat bar sits above the whole page.</p>
+</section>
+
+<section id="source-revision">
+  <h2>Source revision <span class="cite">provenance</span></h2>
+  <p>Every ingest records which revision of the project's sources the evidence came from, in <code>provenance.sourceRevision</code>, and whether the files the build used are that revision's files. Git and SVN (<a href="https://github.com/dhaksh64/butterfly/issues/301">#301</a>) are read.</p>
+  <p>It also records which build of butterfly wrote it (<a href="https://github.com/dhaksh64/butterfly/issues/117">#117</a>): <code>provenance.toolCommit</code> is the commit of butterfly's own sources the tool was built from, and <code>provenance.toolDirty</code> whether its work tree had uncommitted changes at the time — captured when the tool is compiled, printed by <code>butterfly --version</code>, and shown beside the version in the report and the Provenance panel. A build that is not from a checkout records <code>unknown</code> rather than guessing; evidence older than the field reads <em>commit not recorded</em>, never as a clean build.</p>
+  <p><strong>The revision id is a label; the file hashes are the proof.</strong> butterfly does not ask git whether the tree is clean. For each file the build used — the coverage file list plus the files the DWARF line tables name — it computes the git blob id from the bytes ingest read and hashed, and compares it with HEAD's tree. <code>assume-unchanged</code>, <code>skip-worktree</code> and fsmonitor, which can make <code>git status</code> say clean, change nothing. An untracked generated header that was compiled in counts; an edited README does not, and is counted separately.</p>
+  <table>
+    <tr><th>state</th><th>means</th></tr>
+    <tr><td><code>clean</code></td><td>every file the build used that is in the working copy matched HEAD byte for byte</td></tr>
+    <tr><td><code>modified</code></td><td>at least one differs, is not in HEAD, is gone, or sits in a submodule at another commit; they are listed (at most 200) with an exact count</td></tr>
+    <tr><td><code>unknown</code></td><td>with its reason: no git or svn, a refused repository (<code>safe.directory</code>), no commits (or SVN r0), a timeout, a corrupt repository, a locked SVN working copy that needs <code>svn cleanup</code>, one written by a newer SVN client, an unversioned source root, an unreadable file, or no git or SVN working copy. Never read as clean.</td></tr>
+  </table>
+  <p><strong>SVN.</strong> The revision is <code>svnversion</code>'s (<code>1234</code>, or <code>1230:1234</code> in a mixed-revision working copy) with the repository UUID and <code>^/</code> path from <code>svn info</code>, since a number alone names neither repository nor branch. SVN's base checksums are of each file's normal form — keywords unexpanded, line endings LF — so a file with no <code>svn:keywords</code>, <code>svn:eol-style</code> or <code>svn:special</code> is compared with its base checksum by the bytes ingest read, which catches an edit <code>svn status</code> misses when the timestamp is put back; a file with one of them is judged by <code>svn status</code> alone, and the record counts which files were judged which way (<code>svn.hashVerified</code>, <code>svn.statusOnly</code>). A mixed revision, switched paths and a sparse checkout are recorded and named in the caveat even when clean; an external holding build files is judged as its own working copy, with its own revision. Every svn call is local (<code>--non-interactive</code>, never <code>-u</code>), bounded, with the environment cleared, and reads <code>--xml</code>.</p>
+  <p>Files outside the working copy — a vendored SDK, system headers — are listed as not under version control, not as modified. Git runs bounded (<a href="https://github.com/dhaksh64/butterfly/issues/246">#246</a>) as <code>git --no-optional-locks -c core.fsmonitor=false</code> with the <code>GIT_*</code> variables cleared; a recorded remote has its credentials removed. A modified or unknown state is a caveat, not a failure; the opt-in <code>check --require-clean-source</code> is <a href="https://github.com/dhaksh64/butterfly/issues/303">#303</a>.</p>
+</section>
+
+<section id="config">
+  <h2>Configuration <span class="cite">butterfly.toml</span></h2>
+  <p>Sits next to your sources and is picked up automatically.</p>
+  <pre><code><span class="c"># which requirement tags to look for</span>
+[requirements]
+patterns = ['@satisfies\s+([A-Za-z0-9_.:/-]+)', 'REQ-[0-9]+']
+scope    = "both"      <span class="c"># header | body | both</span>
+lookback = 30          <span class="c"># comment lines above a function to scan</span>
+
+<span class="c"># which tickets to recognise in commit messages</span>
+[change]
+patterns = ['\b([A-Z]{2,10}-\d+)\b', 'refs #(\d+)']
+exclude  = ["vendor/**", "generated/**"]</code></pre>
+  <p>Capture group 1 is the identifier, or the whole match when the pattern has no group. The patterns in force are recorded in the evidence provenance, so a reviewer can see exactly how tags were found.</p>
+  <div class="note warn">
+    <span class="tag">Set this first</span>
+    <p>The built-in ticket pattern is Jira-style <code>ABC-123</code>. It is deliberately narrow and still matches things like <code>DO-178</code> or <code>UTF-8</code> in a message — which is why every ticket found is listed for a human to sanity-check. <strong>The <code>[change]</code> pattern for your tracker is the single most consequential line in the file.</strong></p>
+  </div>
+</section>
+
+<section id="report">
+  <h2>Report and CI</h2>
+  <h3>The report</h3>
+  <p><code>butterfly report</code> writes one self-contained HTML file — no external assets, safe to email. Thirteen sections, numbered in the order they appear: summary against table A-7, requirements coverage, the analysis baseline, build and provenance with input hashes, functions, compiler-generated code, gaps and their resolutions, coverage justifications (every <code>fn:</code>, <code>line:</code>, <code>branch:</code> and <code>cond:</code> review, with what it justifies), source-to-object traceability with CAST-12 sample adequacy, dead-code candidates and the image, stack usage, change impact, and caveats. Dead-code candidates, stack usage and change impact appear only when the evidence carries them; the numbering closes up around one that is absent, so cite a section by its title.</p>
+
+  <h3>Gating a pipeline</h3>
+  <pre><code>butterfly impact evidence.json --fail-on blocker   <span class="c"># exit 3 if any blocker</span>
+butterfly changes evidence.json --since v1.2.0 --fail-on major</code></pre>
+  <p><strong>Exit 3</strong> means the threshold was exceeded — 1 is an error, 2 a usage mistake — so a pipeline can gate without parsing anything.</p>
+
+  <h3>Butterfly's own CI</h3>
+  <p>Every push and pull request runs on Ubuntu (<code>ubuntu-24.04</code>; the macOS leg was removed in #147 because a macOS runner bills at roughly ten times a Linux one, so macOS is covered by <code>scripts/ci-local.sh</code> on a developer's machine and not by CI): full-depth checkout (the change tests read history), the pinned toolchain, the C example built <em>first</em> so the end-to-end and CLI suites run rather than skip — and the run <strong>fails if any suite reports “skipping”</strong> — then the documented ingest → summary → baseline → changes → impact → report workflow end to end, plus <code>cargo audit</code>, with warnings treated as errors.</p>
+</section>
+
+<section id="examples">
+  <h2>Worked examples</h2>
+  <p class="lede">Six projects you can copy. Same program in each language, so you can compare how a construct compiles.</p>
+  <div class="tw">
+    <table>
+      <tr><th>Single file</th><th class="num">Functions</th><th class="num">Gaps</th><th>Demonstrates</th></tr>
+      <tr><td class="mono">examples/c</td><td class="num">10</td><td class="num">28</td><td>MC/DC, stack usage, a function-pointer table. Start here.</td></tr>
+      <tr><td class="mono">examples/cpp</td><td class="num">11</td><td class="num">30</td><td>Mangled names, a template at two types, vtable dispatch</td></tr>
+      <tr><td class="mono">examples/rust</td><td class="num">8</td><td class="num">63</td><td>Nightly coverage, runtime checks, <code>core-lib</code> gaps</td></tr>
+    </table>
+  </div>
+  <div class="tw">
+    <table>
+      <tr><th>Multi-file library</th><th class="num">Functions</th><th class="num">Gaps</th><th>Demonstrates</th></tr>
+      <tr><td class="mono">examples/c-lib</td><td class="num">18</td><td class="num">31</td><td>Data and control coupling, stack chains across modules, and a <a href="#lib">library with no <code>main</code></a></td></tr>
+      <tr><td class="mono">examples/cpp-lib</td><td class="num">24</td><td class="num">35</td><td>A header-defined template, vtables from an anonymous namespace, a static initialiser</td></tr>
+      <tr><td class="mono">examples/rust-lib</td><td class="num">18</td><td class="num">78</td><td>One crate, six modules, atomics as shared globals</td></tr>
+    </table>
+  </div>
+  <p>The library examples exist for what a single file cannot show: a global one module owns and another writes, calls that cross a file boundary, stack chains reported <strong>unbounded</strong> where a dispatch table defeats static analysis, and the difference between <em>uncovered</em> and <em>dead</em>.</p>
+
+  <h3 id="lib">A library with no <code>main</code></h3>
+  <p>A component that cannot run has no coverage of its own, so the tests live outside it. Build the archive as delivered, drive it from a harness to get coverage, then <strong>link</strong> the archive with that harness — that binary is what you analyse.</p>
+  <div class="tw">
+    <table>
+      <tr><th></th><th>Linked harness</th><th>Unlinked <code>.o</code> files</th></tr>
+      <tr><td>Object coverage (covered / uncovered / unknown)</td><td>346 / 102 / <strong>8 unknown</strong></td><td>211 / 102 / 8</td></tr>
+      <tr><td>Data coupling</td><td><span class="chip good">3 globals, 9 refs</span></td><td><span class="chip blocker">none</span></td></tr>
+      <tr><td>Stack worst case</td><td><strong>192 B</strong>, 2 chains unbounded</td><td>32 B: the first object named (<span class="mono">crc.o</span>) alone</td></tr>
+      <tr><td>Dead code</td><td>Reachability from the entry point</td><td>No entry point — not determinable</td></tr>
+    </table>
+  </div>
+  <p>An archive is refused outright with an actionable message. Unlinked objects work partially — branch relocations are read, so calls between units resolve — but global-data references are still relocations, so coupling is under-reported, and each object starts at address zero so only the first symbol table survives. Ingesting one prints a caveat saying exactly that, and with no entry point no dead code is claimed. Which unit's symbols, stack and coupling are analysed is whichever object is named first: the command below names them in file-name order, so it is <span class="mono">crc.o</span>.</p>
+  <p>The figures are <span class="mono">examples/c-lib</span>'s, built by <span class="mono">build-lib.sh</span> with Apple clang 17 on arm64; another compiler gives other counts. <span class="mono">crates/ingest/tests/unlinked_objects.rs</span> asserts each difference in the table &mdash; coupling absent, a shorter worst case with no unbounded chain, no entry point, no dead code claimed, and never more uncovered code than the linked build &mdash; rather than these numbers. That last one is a bound, not an equality: the equal uncovered counts above are Mach-O&rsquo;s, where each object keeps all of its uncovered instructions; on ELF the objects are addressed section-relative and fewer of them are projected, so the unlinked count can be lower. To reproduce:</p>
+  <pre><code>./examples/c-lib/build-lib.sh
+# linked: the archive and its harness
+butterfly ingest examples/c-lib/build-lib --source-root examples/c-lib -o linked.json
+# unlinked: the library's objects (every one but the harness's), one --object each
+butterfly ingest --coverage examples/c-lib/build-lib/coverage.json \
+  $(for o in examples/c-lib/build-lib/obj/*.o; do case "$o" in *test_flight*) ;; *) echo "--object $o" ;; esac; done) \
+  --source-root examples/c-lib -o unlinked.json</code></pre>
+</section>
+
+<section id="support">
+  <h2>What is supported</h2>
+  <p class="lede">Per construct, architecture, object format and toolchain: supported, handled with caveats, or not supported, with the example it was shown on and the test that asserts it.</p>
+  <!-- butterfly:matrix -->
+  <!-- Generated from support/matrix.toml by scripts/showcase/matrix-docs.cjs. Do not edit by hand. -->
+  <p>91 rows from <span class="mono">support/matrix.toml</span>, which a test checks textually against the examples, evidence lines and proof tests they name: <strong>22 supported</strong>, <strong>60 handled with caveats</strong>, <strong>9 not supported</strong>. The caveat column is the point of the table.</p>
+  <h3>language</h3>
+  <div class="tw">
+    <table>
+      <tr><th>What</th><th>State</th><th>Caveat, or why it is not supported</th><th>Example</th><th>Proof</th></tr>
+      <tr><td>MC/DC of a multi-condition decision, from clang's -fcoverage-mcdc<br><span class="mono">c.mcdc</span></td><td><span class="chip good">Supported</span></td><td></td><td><span class="mono">c</span></td><td><span class="mono">crates/ingest/tests/e2e_demo_c.rs::demo_c_end_to_end</span></td></tr>
+      <tr><td>switch statement<br><span class="mono">c.switch</span></td><td><span class="chip major">Handled, with caveats</span></td><td>A sixteen-case switch compiled to a jump table at -O0 and -O2: the table is read from the image, each case is an edge from the indirect branch, no case block is called unreachable and no case region a predicated decision. Only clang's table shapes are read (AArch64 word, halfword and byte entries; x86-64 32-bit offsets), and the x86-64 path has been run here on Mach-O and on rust-lld-linked x86-64 Linux ELF images of this example; until <a href="https://github.com/dhaksh64/butterfly/issues/325">#325</a> the ELF disassembly's single-<code>#</code> comment hid the table's address, so no ELF table was read. Any other shape leaves the branch unresolved. The indirect branch stays a gap for a reviewer to confirm the table is the switch's. A small switch like examples/c's <code>phase_name</code> compiles to compares on AArch64; on x86-64 clang lowers it to a table too, which is read the same way.</td><td><span class="mono">c-switch</span></td><td><span class="mono">crates/ingest/tests/jump_table.rs::the_o0_switch_is_read_through_its_table</span></td></tr>
+      <tr><td>Internal-linkage (static) functions, kept apart from an extern of the same name<br><span class="mono">c.static-function</span></td><td><span class="chip good">Supported</span></td><td></td><td><span class="mono">c-header-inline</span></td><td><span class="mono">crates/ingest/tests/dup_static_symbols.rs::a_static_and_an_extern_of_one_name_stay_apart</span></td></tr>
+      <tr><td>A header <code>static inline</code> compiled into several translation units<br><span class="mono">c.header-static-inline</span></td><td><span class="chip good">Supported</span></td><td></td><td><span class="mono">c-header-inline</span></td><td><span class="mono">crates/ingest/tests/dup_static_symbols.rs::each_translation_units_copy_keeps_its_own_object_code</span></td></tr>
+      <tr><td>Several translation units linked into one image, including two files of the same name<br><span class="mono">c.multi-unit</span></td><td><span class="chip major">Handled, with caveats</span></td><td>Each unit is analysed apart, but where units share a file name (<code>src/alpha/dup.c</code>, <code>src/beta/dup.c</code>) llvm-cov qualifies both statics as <code>dup.c:tally</code> and keeps a coverage record for only one: the other copy is left unattributed and out of the covered totals, with an image finding naming it, rather than credited to the first unit's function.</td><td><span class="mono">c-header-inline</span></td><td><span class="mono">crates/ingest/tests/dup_static_symbols.rs::units_with_the_same_basename_are_not_one_unit</span></td></tr>
+      <tr><td>A static function the coverage export has no record for, beside a covered extern of the same name<br><span class="mono">c.static-with-no-coverage-record</span></td><td><span class="chip good">Supported</span></td><td></td><td><span class="mono">c-unprofiled-static</span></td><td><span class="mono">crates/ingest/tests/dup_unprofiled_static.rs::an_unbound_call_keeps_its_gap_though_another_unit_covers_the_name</span></td></tr>
+      <tr><td>Dispatch through a table of function pointers<br><span class="mono">c.function-pointer-table</span></td><td><span class="chip major">Handled, with caveats</span></td><td>That op_double and op_negate are held by OPS, are the candidates of apply_op's call and are not dead code is asserted on the CI-built example (crates/ingest/tests/e2e_demo_c.rs), on every host: in an x86-64 Linux PIE the table's words are <code>R_*_RELATIVE</code> relocations the file holds as zero, and until <a href="https://github.com/dhaksh64/butterfly/issues/325">#325</a> G1 both functions read as dead there. How an indirect call is drawn in the call graph is proven on hand-built evidence. The same construct in examples/c-lib (<code>TASKS[idx](arg)</code> in <code>sched.c</code>) is asserted on its image by <code>c_lib_arch.rs</code>: the call is recorded as indirect and the stack chains through it are reported unbounded. Tracked in <a href="https://github.com/dhaksh64/butterfly/issues/175">#175</a>.</td><td><span class="mono">c</span></td><td><span class="mono">ui/callgraph.test.cjs::a chain through a candidate edge is a hypothesis, and stays one</span></td></tr>
+      <tr><td>Direct recursion<br><span class="mono">c.recursion</span></td><td><span class="chip major">Handled, with caveats</span></td><td>CI builds the example, but the test proves the call-graph model on hand-built evidence; no test asserts what butterfly reports for the recursion in this example. Tracked in <a href="https://github.com/dhaksh64/butterfly/issues/175">#175</a>.</td><td><span class="mono">c-callgraph</span></td><td><span class="mono">ui/callgraph.test.cjs::recursion terminates and is drawn as a cycle rather than a second node</span></td></tr>
+      <tr><td>Mutual recursion<br><span class="mono">c.mutual-recursion</span></td><td><span class="chip major">Handled, with caveats</span></td><td>CI builds the example, but the test proves the call-graph model on hand-built evidence; no test asserts what butterfly reports for the recursion in this example. Tracked in <a href="https://github.com/dhaksh64/butterfly/issues/175">#175</a>.</td><td><span class="mono">c-callgraph</span></td><td><span class="mono">ui/callgraph.test.cjs::mutual recursion terminates</span></td></tr>
+      <tr><td>A static library archive (.a) passed as the object<br><span class="mono">c.static-archive</span></td><td><span class="chip blocker">Not supported</span></td><td>Refused by design, with a message saying to link the library into a test image or pass its members: an archive has no single control-flow graph.</td><td>&mdash;</td><td></td></tr>
+      <tr><td>An unlinked object file (.o)<br><span class="mono">c.unlinked-object</span></td><td><span class="chip major">Handled, with caveats</span></td><td>Shown on the library's five objects from <code>build-lib.sh</code>, against the same library linked with its harness. Every object is named UNLINKED in the evidence; only the first object's symbols, stack and data coupling are analysed, global-data references stay relocations so coupling is not reported, stack chains stop at the unit boundary, and with no entry point no dead code is claimed. Linking the library with its harness is the supported route.</td><td><span class="mono">c-lib</span></td><td><span class="mono">crates/ingest/tests/unlinked_objects.rs::unlinked_objects_under_report_coupling_stack_and_the_entry_point</span></td></tr>
+      <tr><td>Dynamic stack frames: alloca and variable-length arrays<br><span class="mono">c.dynamic-frame</span></td><td><span class="chip major">Handled, with caveats</span></td><td>A VLA and an alloca are reported not bounded, reason &quot;dynamic frame (alloca / VLA)&quot;, and so is every caller above them; the worst case shown is the static part of the frame. The <code>.su</code> says so where there is one; without it (and <code>.stack_sizes</code> leaves such functions out) the run-time <code>sp</code> write is recognised in the function body -- until <a href="https://github.com/dhaksh64/butterfly/issues/168">#168</a> that path reported the VLA bounded by its static frame. The body scan knows clang's AArch64, x86-64, Arm and RISC-V shapes and errs towards dynamic within them (a register-sized adjustment it cannot tell from a VLA reads as dynamic), but a shape within them it does not know reads as a static frame; on any other architecture the prologue is not read either, so without a <code>.su</code> the frame is unknown and the stack is not bounded. Its x86-64 shape was checked on clang's disassembly here, and runs on an ingested x86-64 image only in hosted CI. On AArch64 Darwin such a function calls the stack probe <code>___chkstk_darwin</code> through its GOT slot (<code>adrp</code>/<code>ldr</code>/<code>blr x16</code>); the slot is resolved to the symbol the image binds it to, so the probe is a direct, runtime-check helper call and not a function-pointer call -- until <a href="https://github.com/dhaksh64/butterfly/issues/271">#271</a> it read as an indirect call. The same resolution covers ELF <code>R_*_GLOB_DAT</code> slots (AArch64 <code>adrp</code>/<code>ldr</code>/<code>blr</code>, x86-64 <code>call *foo@GOTPCREL(%rip)</code>), checked here on lld-linked images and in unit tests, not on an ingested ELF image in this example, and, in a position-independent ELF image, <code>.got</code> slots an <code>R_*_RELATIVE</code> relocation fills with the start of a function of the image (<a href="https://github.com/dhaksh64/butterfly/issues/325">#325</a>).</td><td><span class="mono">c-constructs</span></td><td><span class="mono">crates/ingest/tests/c_constructs.rs::a_vla_and_an_alloca_are_unbounded_without_the_su</span></td></tr>
+      <tr><td>goto<br><span class="mono">c.goto</span></td><td><span class="chip major">Handled, with caveats</span></td><td>A goto is an ordinary jump in the object-code graph: a cleanup path, a backward retry and a goto into a loop body (irreducible flow) all come out with no block called unreachable, the never-taken gotos and their labels' code uncovered, and the back edge covered. The shared return block of <code>goto_cleanup</code> borrows the closing brace, which llvm-cov counts inside the zero-count <code>undo_a:</code> label; it is projected covered by inference, because the covered <code>return rc;</code> block (the only code of its line, no call) jumps to it unconditionally, and shown as <code>shared-line</code> with that reasoning. Until <a href="https://github.com/dhaksh64/butterfly/issues/270">#270</a> it read uncovered. The rule proves entry only along such an edge: a shared return reached only from blocks whose own evidence is shared, or through a call, keeps the projection of its borrowed line.</td><td><span class="mono">c-constructs</span></td><td><span class="mono">crates/ingest/tests/c_constructs.rs::goto_paths_are_edges_and_the_untaken_ones_are_uncovered</span></td></tr>
+      <tr><td>Unions<br><span class="mono">c.union</span></td><td><span class="chip major">Handled, with caveats</span></td><td>A union is one object: a global's data coupling and a local's variable accesses are attributed to the whole union, never to a member, so writing it as <code>float</code> and reading it as <code>uint32_t</code> shows as a write and a read of the same variable -- true of the storage, silent on the type pun. Local accesses are read on AArch64 only; elsewhere the variable is listed with the reason.</td><td><span class="mono">c-constructs</span></td><td><span class="mono">crates/ingest/tests/c_constructs.rs::unions_and_bitfields_are_whole_objects</span></td></tr>
+      <tr><td>Bitfields<br><span class="mono">c.bitfield</span></td><td><span class="chip major">Handled, with caveats</span></td><td>A bitfield access is attributed to the whole struct, not the field, and a write to one field is the read-modify-write of the word that holds it: it shows as a read and a write of the struct (as a global's data coupling, and as a local's accesses on AArch64). Which field, or which neighbouring fields the write preserved, is not reported.</td><td><span class="mono">c-constructs</span></td><td><span class="mono">crates/ingest/tests/c_constructs.rs::unions_and_bitfields_are_whole_objects</span></td></tr>
+      <tr><td>Variadic functions defined by the project<br><span class="mono">c.varargs</span></td><td><span class="chip major">Handled, with caveats</span></td><td>A variadic function has a static, bounded frame, its <code>va_arg</code> loop is an ordinary decision, and nothing is called unreachable. <code>va_start</code> takes the <code>va_list</code>'s address, so what <code>va_arg</code> reads through it is not attributed, and the variable says so. On AArch64 Darwin <code>va_list</code> is a plain pointer; on x86-64 (and AAPCS64 Linux) clang's <code>va_arg</code> branches between the register save area and the stack, and the prologue tests <code>%al</code> before saving vector registers: compiler branches with no source decision, which by butterfly's rules would be <code>extra-object-branch</code> gaps, with the stack-area path projected covered from its line when the run never took it. That shape was read from clang's x86-64 disassembly here, not from an ingested x86-64 image.</td><td><span class="mono">c-constructs</span></td><td><span class="mono">crates/ingest/tests/c_constructs.rs::a_variadic_function_has_a_bounded_frame_and_an_untracked_va_list</span></td></tr>
+      <tr><td>Macros that expand to control flow<br><span class="mono">c.control-flow-macro</span></td><td><span class="chip major">Handled, with caveats</span></td><td>llvm-cov locates a macro's branch regions at the #define; butterfly places them at the macro's use, where the object code is, so each use is a decision on its own line and its never-run <code>return</code> is projected uncovered. Until <a href="https://github.com/dhaksh64/butterfly/issues/168">#168</a> they were dropped: the object branches read as compiler-generated and the never-run return projected covered from the use line. A multi-condition (MC/DC) decision inside a macro is placed at the use as well, its conditions in the #define's order; until <a href="https://github.com/dhaksh64/butterfly/issues/269">#269</a> it was reported at the #define line as a predicated decision with no object code. The LLVM 18 export layout (Apple clang 17, clang 18) names no file for an MC/DC decision, so it is recovered from where the decision's conditions lie; when that does not settle it (two uses of one macro in a function with different MC/DC results) the decision is not shown and a caveat names it. The LLVM 19+ layout, which states the file, is covered by unit tests only: no host here exports it. Everything a macro expands to shares its use line, so which part of the expansion an instruction implements is inferred, not read.</td><td><span class="mono">c-constructs</span></td><td><span class="mono">crates/ingest/tests/c_constructs.rs::a_decision_inside_a_macro_is_placed_at_the_macro_use</span></td></tr>
+      <tr><td>setjmp / longjmp<br><span class="mono">c.setjmp-longjmp</span></td><td><span class="chip blocker">Not supported</span></td><td>Not claimed anywhere and exercised by nothing.</td><td>&mdash;</td><td></td></tr>
+      <tr><td>Inline assembly in C<br><span class="mono">c.inline-assembly</span></td><td><span class="chip blocker">Not supported</span></td><td>Not claimed anywhere, and no C or C++ example uses it. The Rust inline assembly of examples/rust-qemu (its bare-metal start-up and exit) is not claimed as support either, and no test examines how butterfly reads it.</td><td>&mdash;</td><td></td></tr>
+      <tr><td>Same-named functions in anonymous namespaces of different units<br><span class="mono">cpp.anonymous-namespace</span></td><td><span class="chip good">Supported</span></td><td></td><td><span class="mono">cpp-header-inline</span></td><td><span class="mono">crates/ingest/tests/dup_cpp_symbols.rs::anonymous_namespace_copies_keep_their_own_unit</span></td></tr>
+      <tr><td>A header <code>inline</code> function compiled into several translation units<br><span class="mono">cpp.header-inline</span></td><td><span class="chip good">Supported</span></td><td></td><td><span class="mono">cpp-header-inline</span></td><td><span class="mono">crates/ingest/tests/dup_cpp_symbols.rs::the_header_inline_is_attributed</span></td></tr>
+      <tr><td>Itanium name demangling, including llvm-cov's file-qualified form<br><span class="mono">cpp.demangling</span></td><td><span class="chip good">Supported</span></td><td></td><td><span class="mono">cpp-header-inline</span></td><td><span class="mono">crates/ingest/tests/dup_cpp_symbols.rs::anonymous_namespace_copies_keep_their_own_unit</span></td></tr>
+      <tr><td>A function template instantiated at two types<br><span class="mono">cpp.template</span></td><td><span class="chip major">Handled, with caveats</span></td><td>Each instantiation is a function of its own, projected from its own coverage record; the file's source view is the sum over them, so a line reads covered there if either type ran it. This example's two instantiations take the same path, so it does not show them differing; examples/rust-constructs does (see rust.generics). Tracked in <a href="https://github.com/dhaksh64/butterfly/issues/158">#158</a>.</td><td><span class="mono">cpp</span></td><td><span class="mono">crates/ingest/tests/e2e_cpp_constructs.rs::cpp_example_is_inventoried_with_the_cpp_vocabulary</span></td></tr>
+      <tr><td>Virtual dispatch through a vtable<br><span class="mono">cpp.virtual-dispatch</span></td><td><span class="chip major">Handled, with caveats</span></td><td>The call is an indirect branch: its target set is not resolved, and a stack bound through it is refused rather than guessed. The test here asserts only that the overriding apply() is inventoried as virtual; a virtual call read as an indirect branch is asserted on examples/cpp-exceptions and examples/cpp-constructs. Tracked in <a href="https://github.com/dhaksh64/butterfly/issues/158">#158</a>.</td><td><span class="mono">cpp</span></td><td><span class="mono">crates/ingest/tests/e2e_cpp_constructs.rs::cpp_example_is_inventoried_with_the_cpp_vocabulary</span></td></tr>
+      <tr><td>MC/DC of a multi-condition decision in C++<br><span class="mono">cpp.mcdc</span></td><td><span class="chip major">Handled, with caveats</span></td><td>The example is built in CI, but no test asserts C++ MC/DC on it. Tracked in <a href="https://github.com/dhaksh64/butterfly/issues/158">#158</a>.</td><td><span class="mono">cpp</span></td><td></td></tr>
+      <tr><td>Static initialisers: the constructor function the compiler emits for globals<br><span class="mono">cpp.static-initialiser</span></td><td><span class="chip major">Handled, with caveats</span></td><td>The example is built in CI, but no test asserts this. <code>_GLOBAL__sub_I_*</code> has no source statement behind it and is listed as a dead-code candidate, because the runtime calls it and nothing in the image does. Tracked in <a href="https://github.com/dhaksh64/butterfly/issues/158">#158</a>.</td><td><span class="mono">cpp-lib</span></td><td></td></tr>
+      <tr><td>A class hierarchy whose key function lives in another translation unit<br><span class="mono">cpp.cross-file-vtable</span></td><td><span class="chip major">Handled, with caveats</span></td><td>The example is built in CI, but no test asserts the cross-file key-function behaviour. Tracked in <a href="https://github.com/dhaksh64/butterfly/issues/158">#158</a>.</td><td><span class="mono">cpp-lib</span></td><td></td></tr>
+      <tr><td>Exceptions: throw, catch, landing pads and unwind tables<br><span class="mono">cpp.exceptions</span></td><td><span class="chip major">Handled, with caveats</span></td><td>A throw, a try/catch and the destructors run on unwind, built with exceptions and without. Landing pads are read from the exception table (Mach-O <code>__unwind_info</code> here; ELF <code>.eh_frame</code> on the x86-64 image hosted CI builds, where this test runs too, and on two lld-linked images in crates/ingest/tests/req_e_elf_images.rs) and drawn as exception edges, so no pad is called unreachable; an exception edge is never projected covered, because a pad's lines also run on the normal path. The calls into the C++ runtime's throw, catch, unwind and <code>dynamic_cast</code> machinery are classified as the language runtime; a landing pad's call to <code>__clang_call_terminate</code> is classified as a runtime check. The unwinder's own stack use when a throw happens is not counted, and whether each exception edge was taken is not in the evidence.</td><td><span class="mono">cpp-exceptions</span></td><td><span class="mono">crates/ingest/tests/cpp_exceptions.rs::landing_pads_are_reached_through_the_exception_table</span></td></tr>
+      <tr><td>RTTI: dynamic_cast and typeid<br><span class="mono">cpp.rtti</span></td><td><span class="chip major">Handled, with caveats</span></td><td>A dynamic_cast, built with RTTI and without. The call to __dynamic_cast is classified as the language runtime; the typeinfo it reads is data and is not analysed. typeid is not exercised.</td><td><span class="mono">cpp-exceptions</span></td><td><span class="mono">crates/ingest/tests/cpp_exceptions.rs::the_exception_and_rtti_runtime_is_classified</span></td></tr>
+      <tr><td>Lambdas<br><span class="mono">cpp.lambda</span></td><td><span class="chip major">Handled, with caveats</span></td><td>Every closure's operator() is matched to its object code, whether it is named $_N (in a non-inline function) or {lambda(int, int)#1} (in an inline one); the calls into them from a template, a direct call and an inline member are drawn, and the one converted to a function pointer, reached through the compiler's __invoke, is not reported as dead code. A lambda converted to a function pointer brings a conversion operator and a static __invoke that have no coverage record: each is a function of its own, projected unknown rather than from its enclosing function's lines (<a href="https://github.com/dhaksh64/butterfly/issues/273">#273</a>), and the call through the pointer is an indirect branch whose target is not resolved, so the stack above it is unbounded. Asserted on arm64 Mach-O and on the x86-64 ELF image hosted CI builds.</td><td><span class="mono">cpp-constructs</span></td><td><span class="mono">crates/ingest/tests/cpp_constructs.rs::every_lambda_is_matched_to_its_object_code_and_its_callers</span></td></tr>
+      <tr><td>Operator overloading<br><span class="mono">cpp.operator-overloading</span></td><td><span class="chip good">Supported</span></td><td></td><td><span class="mono">cpp-constructs</span></td><td><span class="mono">crates/ingest/tests/cpp_constructs.rs::overloaded_operators_are_functions_with_callers</span></td></tr>
+      <tr><td>User-written constructors and destructors<br><span class="mono">cpp.constructor-destructor</span></td><td><span class="chip major">Handled, with caveats</span></td><td>Every variant (C1/C2, D0/D1/D2) is attributed to its source function, and the body the coverage record names is the function's object code, so a derived constructor is shown calling its base's; a local's destructor is a call on the closing brace. The other variants are analysed too, as the function's variants: blocks, gaps and a projected status, each address once. The instrumentation counts only the body, so where the body ran, source coverage cannot say whether a variant did: its instructions are projected unknown, not covered, it is an uncounted-variant gap, and its bytes are not in the image's covered-bytes figure. Channel's deleting destructor, which never runs, is therefore reported but not shown as never run; a trace is what shows that. A variant of a body that never ran is projected uncovered. Asserted on arm64 Mach-O, where C1 and D1 are separate thunks; on the x86-64 ELF image hosted CI builds they are aliases of the body and only D0 is a variant, which every_constructor_and_destructor_variant_is_analysed_once asserts there in hosted CI.</td><td><span class="mono">cpp-constructs</span></td><td><span class="mono">crates/ingest/tests/cpp_constructs.rs::a_constructor_is_analysed_from_the_variant_that_has_its_body</span></td></tr>
+      <tr><td>new / delete<br><span class="mono">cpp.new-delete</span></td><td><span class="chip major">Handled, with caveats</span></td><td>The example's calls to the global operator new, new[] and delete[] are core-lib helper calls, the class std:: code gets; a delete through a base pointer is an extra object branch (the null check) and an indirect branch (the virtual deleting destructor). The deleting destructor's own call to operator delete is a core-lib helper call in that variant, though whether a given deleting destructor ran is not established by source coverage (see cpp.constructor-destructor). A class-specific operator new is classified as project code by a unit test of the classifier (synthetic.rs::helper_classification), not by this example.</td><td><span class="mono">cpp-constructs</span></td><td><span class="mono">crates/ingest/tests/cpp_constructs.rs::new_and_delete_are_calls_into_the_cpp_runtime</span></td></tr>
+      <tr><td>The C++ standard library: containers, algorithms, smart pointers<br><span class="mono">cpp.standard-library</span></td><td><span class="chip blocker">Not supported</span></td><td>Not claimed and exercised by nothing: the C++ examples include only &lt;cstdint&gt;, &lt;cstdio&gt; and &lt;cstring&gt;.</td><td>&mdash;</td><td></td></tr>
+      <tr><td>MC/DC from Rust<br><span class="mono">rust.mcdc</span></td><td><span class="chip blocker">Not supported</span></td><td>rustc cannot supply it: current nightlies reject -Zcoverage-options=mcdc and stable emits no branch regions, so the example yields statement and branch coverage only.</td><td><span class="mono">rust</span></td><td></td></tr>
+      <tr><td>Statement and branch coverage of <code>if</code> and <code>match</code><br><span class="mono">rust.branch-coverage</span></td><td><span class="chip major">Handled, with caveats</span></td><td>Only <code>if</code> conditions have outcome coverage: rustc emits no branch region for a <code>match</code> arm, so a <code>match</code> is covered arm by arm as lines. Branch regions need a nightly rustc (see toolchain.rustc-nightly).</td><td><span class="mono">rust</span></td><td><span class="mono">crates/ingest/tests/e2e_rust_constructs.rs::if_conditions_are_branch_regions_and_match_arms_are_lines</span></td></tr>
+      <tr><td>Rust symbol demangling<br><span class="mono">rust.demangling</span></td><td><span class="chip good">Supported</span></td><td></td><td><span class="mono">rust</span></td><td><span class="mono">crates/ingest/tests/e2e_rust_constructs.rs::rust_symbols_are_demangled_and_join_across_the_two_compilers</span></td></tr>
+      <tr><td>Compiler-inserted runtime checks (overflow, bounds, division) classified as such<br><span class="mono">rust.runtime-check</span></td><td><span class="chip major">Handled, with caveats</span></td><td>The checks are classified as runtime checks, but the projection calls them covered because their line ran, though no input divides by zero; only a trace shows they did not run (see rust.panic-path-measured). They are object code with no source counterpart, to be justified, not covered. On x86-64 Linux rustc calls the panic through a GOT slot (<code>call *slot(%rip)</code>), which is read as the direct call it is; until <a href="https://github.com/dhaksh64/butterfly/issues/325">#325</a> it was an indirect call there, and the checks went unclassified.</td><td><span class="mono">rust</span></td><td><span class="mono">crates/ingest/tests/e2e_rust_constructs.rs::the_division_checks_in_average_are_classified_as_runtime_checks</span></td></tr>
+      <tr><td>Closures: capturing by reference and by move, passed as FnMut and FnOnce to generic functions<br><span class="mono">rust.closure</span></td><td><span class="chip major">Handled, with caveats</span></td><td>A closure whose body rustc maps no region in (<code>|_| count += 1</code> here) gets no coverage record. butterfly lists it as a function with no record, inside the function it is written in, on the line the DWARF gives: its object code is analysed but projected neither covered nor uncovered, and carries no-coverage-record gaps, while the line it is written on reads covered through the enclosing function's counts. Whether it ran is not established without a trace. The construct inventory counts closures lexically.</td><td><span class="mono">rust-constructs</span></td><td><span class="mono">crates/ingest/tests/rust_constructs.rs::closures_are_functions_of_their_own_called_by_their_own_generic_copy</span></td></tr>
+      <tr><td>Stack frames recovered from the prologue, since rustc writes no .su file<br><span class="mono">rust.prologue-frame</span></td><td><span class="chip major">Handled, with caveats</span></td><td>A prologue-derived frame is an estimate, labelled as one, not a size the compiler reported. The test asserts the label, not the byte counts, which are the host code generator's; prologue reading itself is unit-tested on hand-written instruction lists.</td><td><span class="mono">rust-lib</span></td><td><span class="mono">crates/ingest/tests/e2e_rust_constructs.rs::every_rust_frame_is_a_prologue_estimate_labelled_as_one</span></td></tr>
+      <tr><td>Atomic statics as the globals of data coupling<br><span class="mono">rust.atomic-global</span></td><td><span class="chip major">Handled, with caveats</span></td><td>At -Copt-level=0 every access is a call into core::sync::atomic, so a function is recorded as taking the static's address, not as reading or writing it. Which functions those are is asserted on macOS/AArch64 and x86-64 Linux only; elsewhere the test asserts only that the statics are globals of the image.</td><td><span class="mono">rust-lib</span></td><td><span class="mono">crates/ingest/tests/e2e_rust_constructs.rs::the_atomic_statics_are_globals_of_the_data_coupling</span></td></tr>
+      <tr><td>Dispatch through a table of fn pointers<br><span class="mono">rust.fn-pointer-table</span></td><td><span class="chip major">Handled, with caveats</span></td><td>The call is an indirect-branch gap whose candidates are the functions its caller takes the address of and those held in any data it reads, each table read as far as its symbol extends; here the caller takes no address, so they are the table's. An ELF symbol has a size, so on x86-64 Linux they are exactly the three; a Mach-O symbol has none, so on macOS the table is read up to the next data symbol and the candidates take in the std vtables after it. That the table's entries are among them, and are held by the table, is asserted on macOS/AArch64 and x86-64 Linux only. In a position-independent ELF image the table's words are <code>R_*_RELATIVE</code> relocations the file holds as zero; they are read through the relocation, and until <a href="https://github.com/dhaksh64/butterfly/issues/325">#325</a> G1 they were not, so on Linux the call had no candidates.</td><td><span class="mono">rust-lib</span></td><td><span class="mono">crates/ingest/tests/e2e_rust_constructs.rs::the_task_table_dispatch_is_an_indirect_call</span></td></tr>
+      <tr><td>A <code>no_std</code>, <code>no_main</code> bare-metal image (aarch64-unknown-none-softfloat), analysed beside a host build of the same crate<br><span class="mono">rust.no-std-bare-metal</span></td><td><span class="chip major">Handled, with caveats</span></td><td>Verified locally, not in hosted CI, and only on a host that has QEMU (see feature.measured-coverage). A bare-metal image has no filesystem to write a profile to, so the source coverage comes from an instrumented host build and is matched to the target image by demangled name: sound only while both compile the same source the same way, and anything behind cfg(target_os = &quot;none&quot;) has no projection at all. Tracked in <a href="https://github.com/dhaksh64/butterfly/issues/164">#164</a>.</td><td><span class="mono">rust-qemu</span></td><td><span class="mono">crates/ingest/tests/e2e_rust_qemu.rs::a_qemu_trace_yields_measured_instruction_and_outcome_coverage</span></td></tr>
+      <tr><td>The Level A route: object-level branch outcomes measured from a trace, where rustc supplies no MC/DC<br><span class="mono">rust.level-a-route</span></td><td><span class="chip major">Handled, with caveats</span></td><td>Verified locally, not in hosted CI, and only on a host that has QEMU (see feature.measured-coverage). Measured object branch outcomes are not MC/DC: whether they satisfy objective 5 for a given compiler and options is the argument CAST-17 describes, and it is the applicant's to make. The trace is from QEMU, an emulator and not the target, on one CPU; butterfly is not a qualified tool. Tracked in <a href="https://github.com/dhaksh64/butterfly/issues/164">#164</a>.</td><td><span class="mono">rust-qemu</span></td><td><span class="mono">crates/ingest/tests/e2e_rust_qemu.rs::the_trace_confirms_what_was_never_run</span></td></tr>
+      <tr><td>Bounds- and overflow-check panic paths: projected covered by their line, measured never executed<br><span class="mono">rust.panic-path-measured</span></td><td><span class="chip major">Handled, with caveats</span></td><td>Verified locally, not in hosted CI, and only on a host that has QEMU (see feature.measured-coverage). At -Copt-level=0 only. The trace shows the panic paths did not run; it does not show whether they need to be, so they remain object code with no source counterpart for a reviewer to account for (see rust.runtime-check for their classification). Tracked in <a href="https://github.com/dhaksh64/butterfly/issues/164">#164</a>.</td><td><span class="mono">rust-qemu</span></td><td><span class="mono">crates/ingest/tests/e2e_rust_qemu.rs::the_trace_contradicts_the_projection_on_the_panic_paths</span></td></tr>
+      <tr><td>An indirect call through a fn-pointer table, resolved to the targets a trace actually reached<br><span class="mono">rust.indirect-call-measured</span></td><td><span class="chip major">Handled, with caveats</span></td><td>Verified locally, not in hosted CI, and only on a host that has QEMU (see feature.measured-coverage). The measured targets are those of one traced campaign, not the set the call can reach: a candidate the trace never reached (cmd_hold here) stays address-taken, not proven unreachable. Tracked in <a href="https://github.com/dhaksh64/butterfly/issues/164">#164</a>.</td><td><span class="mono">rust-qemu</span></td><td><span class="mono">crates/ingest/tests/e2e_rust_qemu.rs::the_trace_confirms_what_was_never_run</span></td></tr>
+      <tr><td>Generic functions and their monomorphised copies<br><span class="mono">rust.generics</span></td><td><span class="chip major">Handled, with caveats</span></td><td>Each copy (<code>limit::&lt;i32&gt;</code>, <code>limit::&lt;u64&gt;</code>) is a function of its own, with its own symbol, branch record, line figures and object-code projection. The file's source view is the sum over the copies, as llvm-cov makes it: a line reads covered there if any copy ran it. Copies that share one name (the same crate built twice) are merged into one function instead.</td><td><span class="mono">rust-constructs</span></td><td><span class="mono">crates/ingest/tests/rust_constructs.rs::each_monomorphised_copy_is_projected_from_its_own_record</span></td></tr>
+      <tr><td>Trait objects and dyn dispatch<br><span class="mono">rust.dyn-dispatch</span></td><td><span class="chip major">Handled, with caveats</span></td><td>The call through the vtable is an indirect-branch gap with no static candidates: the vtable arrives as an argument, so the target set is not resolved (as for cpp.virtual-dispatch). The impls it reaches have no direct caller and are not reported dead, because their vtables hold their addresses; that, and that the call has no static candidates, is asserted on macOS/AArch64 and x86-64 Linux only. On Linux a vtable's words are <code>R_*_RELATIVE</code> relocations the file holds as zero; until <a href="https://github.com/dhaksh64/butterfly/issues/325">#325</a> G1 they were not read, and every such impl was a dead-code candidate there. An impl whose type is never built (Bypass here) has no vtable, and rustc emits no code for it.</td><td><span class="mono">rust-constructs</span></td><td><span class="mono">crates/ingest/tests/rust_constructs.rs::a_dyn_call_is_an_indirect_branch_and_the_impls_behind_it_are_not_dead</span></td></tr>
+      <tr><td>macro_rules! expansions that contain decisions<br><span class="mono">rust.macro-rules</span></td><td><span class="chip major">Handled, with caveats</span></td><td>rustc emits no branch region for a condition inside a macro expansion, so the decision's outcomes are not in the source coverage at all. The image's line table puts the expanded code on the macro's definition, not on each use, so every use lands on that one line. That line has no count: its object code is projected neither covered nor uncovered and carries not-instrumented and extra-object-branch gaps, while the using lines read covered. Only a trace measures the outcomes (see rust.level-a-route).</td><td><span class="mono">rust-constructs</span></td><td><span class="mono">crates/ingest/tests/rust_constructs.rs::a_macro_expanded_decision_lands_on_the_definition_with_no_count</span></td></tr>
+    </table>
+  </div>
+  <h3>toolchain</h3>
+  <div class="tw">
+    <table>
+      <tr><th>What</th><th>State</th><th>Caveat, or why it is not supported</th><th>Example</th><th>Proof</th></tr>
+      <tr><td>clang with llvm-cov source-based coverage<br><span class="mono">toolchain.clang</span></td><td><span class="chip good">Supported</span></td><td></td><td><span class="mono">c</span></td><td><span class="mono">crates/ingest/tests/e2e_demo_c.rs::demo_c_end_to_end</span></td></tr>
+      <tr><td>GCC with gcov's JSON export<br><span class="mono">toolchain.gcc-gcov</span></td><td><span class="chip major">Handled, with caveats</span></td><td>butterfly reads no MC/DC from gcov: condition coverage from <code>-fcondition-coverage</code> is noted in a caveat, not read as MC/DC, and gcov does not say which outcome of a branch is the true one. The reader is proven on hand-written exports (crates/ingest/tests/gcov.rs); the only tests that read the built example are the doctor's, which are compiled on Linux alone, and ci-local builds the example on Linux alone.</td><td><span class="mono">c-gcc</span></td><td><span class="mono">crates/cli/tests/doctor.rs::a_gcc_instrumented_binary_is_recognised_and_not_analysed</span></td></tr>
+      <tr><td>rustc nightly with -Cinstrument-coverage -Zcoverage-options=condition<br><span class="mono">toolchain.rustc-nightly</span></td><td><span class="chip major">Handled, with caveats</span></td><td>No MC/DC (see rust.mcdc), and the LLVM tools must be nightly's own: stable's llvm-profdata cannot merge nightly's profile. CI pins nightly-2026-08-10; another nightly may map coverage regions differently.</td><td><span class="mono">rust</span></td><td><span class="mono">crates/ingest/tests/e2e_rust_constructs.rs::nightly_supplies_the_coverage_and_stable_builds_the_analysed_image</span></td></tr>
+      <tr><td>rustc stable, for the uninstrumented target build<br><span class="mono">toolchain.rustc-stable</span></td><td><span class="chip major">Handled, with caveats</span></td><td>Stable emits no branch regions, so it builds the image that is analysed and nightly supplies the coverage. The two are joined by demangled name, which is sound only while both compile the same source the same way.</td><td><span class="mono">rust</span></td><td><span class="mono">crates/ingest/tests/e2e_rust_constructs.rs::nightly_supplies_the_coverage_and_stable_builds_the_analysed_image</span></td></tr>
+    </table>
+  </div>
+  <h3>architecture</h3>
+  <div class="tw">
+    <table>
+      <tr><th>What</th><th>State</th><th>Caveat, or why it is not supported</th><th>Example</th><th>Proof</th></tr>
+      <tr><td>AArch64<br><span class="mono">arch.aarch64</span></td><td><span class="chip major">Handled, with caveats</span></td><td>The only architecture with variable attribution. Hosted CI runs on x86-64 alone since <a href="https://github.com/dhaksh64/butterfly/issues/147">#147</a>, so this is exercised only when the suite runs on an AArch64 host, such as ci-local on Apple silicon.</td><td><span class="mono">c</span></td><td><span class="mono">crates/ingest/tests/vars.rs::demo_c_carries_variables_with_ordered_accesses</span></td></tr>
+      <tr><td>x86-64<br><span class="mono">arch.x86-64</span></td><td><span class="chip major">Handled, with caveats</span></td><td>The proof is compiled only on an x86-64 host and asserts the example's globals, their readers and writers, and the chain left unbounded by the call through the task table; examples/c's variables are asserted there too (crates/ingest/tests/vars.rs). It has run on an x86-64 Mach-O build under Rosetta and in hosted CI on the x86-64 ELF image it builds. Variables are listed but not attributed: each says the architecture is why. Frame sizes and totals are the compiler's, so only the shape of the chain is asserted. Tracked in <a href="https://github.com/dhaksh64/butterfly/issues/113">#113</a>.</td><td><span class="mono">c-lib</span></td><td><span class="mono">crates/ingest/tests/c_lib_arch.rs::x86_64_c_lib_couples_globals_and_reports_the_unbounded_chain</span></td></tr>
+      <tr><td>RISC-V<br><span class="mono">arch.riscv</span></td><td><span class="chip blocker">Not supported</span></td><td>Not yet demonstrated: there are RISC-V paths for branch conditions, prologues and data references, but no example, and the data-reference scanner has no test at all. Tracked in <a href="https://github.com/dhaksh64/butterfly/issues/161">#161</a>.</td><td>&mdash;</td><td></td></tr>
+      <tr><td>Mach-O<br><span class="mono">format.macho</span></td><td><span class="chip major">Handled, with caveats</span></td><td>Read from a real linked image only on a macOS host; hosted CI is Linux since <a href="https://github.com/dhaksh64/butterfly/issues/147">#147</a>.</td><td><span class="mono">c</span></td><td><span class="mono">crates/ingest/tests/macho_entry.rs::a_macho_entry_lands_on_the_entry_symbol</span></td></tr>
+      <tr><td>ELF<br><span class="mono">format.elf</span></td><td><span class="chip major">Handled, with caveats</span></td><td>Every example CI builds on Linux is an ELF image and hosted CI runs the example suites on it, but most of their assertions are written to hold on either format; few test an ELF-only path on an example: the C runtime's startup stubs may stay unattributed (dup_cpp_symbols.rs), a constructor's C1 and D1 are aliases of its body, so only D0 is a variant (cpp_constructs.rs), and a table is read to its symbol's size, so the fn-pointer table's candidates are exactly its three (e2e_rust_constructs.rs). The <code>.eh_frame</code> LSDA index, <code>R_*_GLOB_DAT</code> GOT calls, <code>.rodata</code> jump tables, data coupling and <code>.stack_sizes</code> are each asserted on two small lld-linked ELF images built from hand-written assembly (req_e_elf_images.rs), not on an example. Tracked in <a href="https://github.com/dhaksh64/butterfly/issues/278">#278</a>.</td><td><span class="mono">c</span></td><td><span class="mono">crates/ingest/tests/dup_cpp_symbols.rs::anonymous_namespace_copies_keep_their_own_unit</span></td></tr>
+      <tr><td>PE / COFF<br><span class="mono">format.pe-coff</span></td><td><span class="chip blocker">Not supported</span></td><td>Not handled: butterfly recognises its header and would pass it to the generic object parser, but nothing beyond that is written for it, no example builds one and no test reads one. Tracked in <a href="https://github.com/dhaksh64/butterfly/issues/161">#161</a>.</td><td>&mdash;</td><td></td></tr>
+    </table>
+  </div>
+  <h3>feature</h3>
+  <div class="tw">
+    <table>
+      <tr><th>What</th><th>State</th><th>Caveat, or why it is not supported</th><th>Example</th><th>Proof</th></tr>
+      <tr><td>Overview dashboard<br><span class="mono">feature.overview</span></td><td><span class="chip major">Handled, with caveats</span></td><td>The browser check asserts that the Overview renders on the example, not the figures it shows; ci-local runs it only where Playwright is installed. Tracked in <a href="https://github.com/dhaksh64/butterfly/issues/173">#173</a>.</td><td><span class="mono">c-per-test</span></td><td><span class="mono">ui/browser/checks/requirements.cjs::overview-renders</span></td></tr>
+      <tr><td>Flow: the object-level control-flow graph with coverage overlay<br><span class="mono">feature.flow</span></td><td><span class="chip major">Handled, with caveats</span></td><td>The browser check asserts that the tab renders for every function, not what the graph shows; block and edge construction is proven on hand-written instruction lists. Tracked in <a href="https://github.com/dhaksh64/butterfly/issues/174">#174</a>.</td><td><span class="mono">c-per-test</span></td><td><span class="mono">ui/browser/checks/requirements.cjs::every-function-tab-renders</span></td></tr>
+      <tr><td>Calls: the expandable call graph<br><span class="mono">feature.calls</span></td><td><span class="chip major">Handled, with caveats</span></td><td>CI builds the fixture made for this graph, but the graph model is proven on hand-built evidence: the tests that ingest the fixture check its counts, its gaps and that a repeated ingest gives the same answer, not the calls it draws. Tracked in <a href="https://github.com/dhaksh64/butterfly/issues/175">#175</a>.</td><td><span class="mono">c-callgraph</span></td><td><span class="mono">ui/callgraph.test.cjs::a function with neighbours of its own is offered for expansion, a leaf is not</span></td></tr>
+      <tr><td>Object: every instruction with its source line and projected coverage<br><span class="mono">feature.object</span></td><td><span class="chip good">Supported</span></td><td> Tracked in <a href="https://github.com/dhaksh64/butterfly/issues/176">#176</a>.</td><td><span class="mono">c</span></td><td><span class="mono">crates/ingest/tests/e2e_demo_c.rs::every_instruction_of_average_carries_its_source_line_and_projected_status</span></td></tr>
+      <tr><td>Gaps and their recorded resolutions<br><span class="mono">feature.gaps</span></td><td><span class="chip good">Supported</span></td><td> Tracked in <a href="https://github.com/dhaksh64/butterfly/issues/177">#177</a>.</td><td><span class="mono">c</span></td><td><span class="mono">crates/cli/tests/check_gate.rs::a_recorded_justification_counts_as_resolved</span></td></tr>
+      <tr><td>MC/DC: executed vectors and independence pairs per decision<br><span class="mono">feature.mcdc</span></td><td><span class="chip major">Handled, with caveats</span></td><td>On the example the test asserts the decision's conditions and which of them have an independence pair, not the executed vectors or which vectors form each pair: an export in the LLVM 18 MC/DC record layout, which Apple clang writes, carries no vectors at all. How vectors and pairs are read is proven on hand-built evidence (crates/ingest/tests/mcdc_vectors_by_test.rs). Tracked in <a href="https://github.com/dhaksh64/butterfly/issues/178">#178</a>.</td><td><span class="mono">c</span></td><td><span class="mono">crates/ingest/tests/e2e_demo_c.rs::demo_c_end_to_end</span></td></tr>
+      <tr><td>Stack: frames from the compiler's .su files and the worst-case chain<br><span class="mono">feature.stack</span></td><td><span class="chip good">Supported</span></td><td> Tracked in <a href="https://github.com/dhaksh64/butterfly/issues/179">#179</a>.</td><td><span class="mono">c</span></td><td><span class="mono">crates/cli/tests/build_stack_usage.rs::every_variant_ingests_its_stack_usage_file</span></td></tr>
+      <tr><td>Data coupling: which functions read and write each global<br><span class="mono">feature.data</span></td><td><span class="chip major">Handled, with caveats</span></td><td>On the example, crates/ingest/tests/c_lib_arch.rs asserts who reads and writes each global, but on ELF it checks only the same-file accessors of <code>g_state</code>: a reference from another translation unit is loaded through the GOT, which the data-reference scanner does not follow. Tracked in <a href="https://github.com/dhaksh64/butterfly/issues/180">#180</a>.</td><td><span class="mono">c-lib</span></td><td><span class="mono">crates/ingest/tests/synthetic.rs::datarefs_aarch64_and_x86</span></td></tr>
+      <tr><td>Variables: parameters and locals with every access, in static order<br><span class="mono">feature.variables</span></td><td><span class="chip major">Handled, with caveats</span></td><td>AArch64 only; on any other architecture the panel says why it is empty. Tracked in <a href="https://github.com/dhaksh64/butterfly/issues/181">#181</a>, <a href="https://github.com/dhaksh64/butterfly/issues/163">#163</a>.</td><td><span class="mono">c</span></td><td><span class="mono">crates/ingest/tests/vars.rs::demo_c_carries_variables_with_ordered_accesses</span></td></tr>
+      <tr><td>Change impact: the commits that touched a function and what they oblige<br><span class="mono">feature.changes</span></td><td><span class="chip good">Supported</span></td><td> Tracked in <a href="https://github.com/dhaksh64/butterfly/issues/182">#182</a>.</td><td><span class="mono">c</span></td><td><span class="mono">crates/cli/tests/changes_cli.rs::c42b_each_commit_names_the_functions_it_touched</span></td></tr>
+      <tr><td>Requirement text beside the code<br><span class="mono">feature.requirement-text</span></td><td><span class="chip good">Supported</span></td><td> Tracked in <a href="https://github.com/dhaksh64/butterfly/issues/183">#183</a>.</td><td><span class="mono">c-per-test</span></td><td><span class="mono">crates/cli/tests/serve_requirements.rs::the_statement_comes_back_and_the_analysis_only_on_request</span></td></tr>
+      <tr><td>Requirements x tests, and the claims gate that checks a project's own traceability<br><span class="mono">feature.requirements-tests</span></td><td><span class="chip good">Supported</span></td><td> Tracked in <a href="https://github.com/dhaksh64/butterfly/issues/184">#184</a>.</td><td><span class="mono">c-per-test</span></td><td><span class="mono">crates/cli/tests/claims_gate.rs::the_fixtures_wrong_test_claim_is_caught_and_exits_three</span></td></tr>
+      <tr><td>Per-test attribution: which test entered which function and line<br><span class="mono">feature.per-test</span></td><td><span class="chip good">Supported</span></td><td> Tracked in <a href="https://github.com/dhaksh64/butterfly/issues/184">#184</a>.</td><td><span class="mono">c-per-test</span></td><td><span class="mono">crates/ingest/tests/per_test.rs::a_function_lists_the_tests_that_entered_it</span></td></tr>
+      <tr><td>File view: the whole file, folded to findings<br><span class="mono">feature.file-view</span></td><td><span class="chip major">Handled, with caveats</span></td><td>How a line is painted is proven on hand-written evidence; the File view is opened on an example only by the showcase screenshot capture, and no test asserts how it paints a line there. Tracked in <a href="https://github.com/dhaksh64/butterfly/issues/185">#185</a>.</td><td><span class="mono">c</span></td><td><span class="mono">ui/lines.test.cjs::a reached line whose statement never ran is not painted covered</span></td></tr>
+      <tr><td>Comparing optimisation levels as switchable variants<br><span class="mono">feature.compare</span></td><td><span class="chip major">Handled, with caveats</span></td><td>The browser check covers switching between variants, not what the Compare page says about them, and the one Rust test that reads the built variants, crates/ingest/tests/macho_entry.rs, is allowed to skip when they are absent. Tracked in <a href="https://github.com/dhaksh64/butterfly/issues/186">#186</a>.</td><td><span class="mono">c</span></td><td><span class="mono">ui/browser/checks/variants.cjs::a-superseded-load-never-commits-over-a-newer-one</span></td></tr>
+      <tr><td>The static HTML report<br><span class="mono">feature.report</span></td><td><span class="chip good">Supported</span></td><td> Tracked in <a href="https://github.com/dhaksh64/butterfly/issues/187">#187</a>, <a href="https://github.com/dhaksh64/butterfly/issues/156">#156</a>.</td><td><span class="mono">c-per-test</span></td><td><span class="mono">crates/cli/tests/report_requirements.rs::the_report_quotes_each_requirement_and_names_its_baseline</span></td></tr>
+      <tr><td>Gates: <code>butterfly check</code> thresholds and no-regression<br><span class="mono">feature.gates</span></td><td><span class="chip good">Supported</span></td><td> Tracked in <a href="https://github.com/dhaksh64/butterfly/issues/188">#188</a>.</td><td><span class="mono">c</span></td><td><span class="mono">crates/cli/tests/check_gate.rs::a_gap_ceiling_breach_names_the_worst_functions_and_exits_three</span></td></tr>
+      <tr><td><code>butterfly doctor</code>: is this build directory fit to analyse<br><span class="mono">feature.doctor</span></td><td><span class="chip major">Handled, with caveats</span></td><td>The refusal this command exists for -- a directory holding only the instrumented binary, which must exit 3 -- is asserted on Linux alone, against the GCC example. Tracked in <a href="https://github.com/dhaksh64/butterfly/issues/189">#189</a>.</td><td><span class="mono">c</span></td><td><span class="mono">crates/cli/tests/doctor.rs::a_complete_clang_build_passes_and_names_what_it_skipped</span></td></tr>
+      <tr><td><code>butterfly run</code>: build, doctor, ingest and report in one command, then serve<br><span class="mono">feature.run</span></td><td><span class="chip blocker">Not supported</span></td><td>Not claimed as support: the showcase runs it once on examples/c (V18) and prints what it reported, but no test drives an example through it; its stop conditions are tested on throwaway projects (crates/cli/tests/run_pipeline.rs). Tracked in <a href="https://github.com/dhaksh64/butterfly/issues/190">#190</a>.</td><td>&mdash;</td><td></td></tr>
+      <tr><td>CMake<br><span class="mono">feature.build-systems.cmake</span></td><td><span class="chip major">Handled, with caveats</span></td><td>Not built in CI: scripts/verify-build-systems.sh, which scripts/ci-local.sh runs, checks this build's evidence equals examples/c-lib's own in its counts of files, functions, symbols, lines, branches and gaps (not byte for byte), and that ingest refuses the build with one stack-usage file taken away; where this build system's tool is not installed it prints a named SKIP and the run still passes.</td><td><span class="mono">build-systems/cmake</span></td><td><span class="mono">scripts/verify-build-systems.sh</span></td></tr>
+      <tr><td>GNU make<br><span class="mono">feature.build-systems.make</span></td><td><span class="chip major">Handled, with caveats</span></td><td>Not built in CI: scripts/verify-build-systems.sh, which scripts/ci-local.sh runs, checks this build's evidence equals examples/c-lib's own in its counts of files, functions, symbols, lines, branches and gaps (not byte for byte), and that ingest refuses the build with one stack-usage file taken away; where this build system's tool is not installed it prints a named SKIP and the run still passes.</td><td><span class="mono">build-systems/make</span></td><td><span class="mono">scripts/verify-build-systems.sh</span></td></tr>
+      <tr><td>Bazel<br><span class="mono">feature.build-systems.bazel</span></td><td><span class="chip major">Handled, with caveats</span></td><td>Not built in CI: scripts/verify-build-systems.sh, which scripts/ci-local.sh runs, checks this build's evidence equals examples/c-lib's own in its counts of files, functions, symbols, lines, branches and gaps (not byte for byte), and that ingest refuses the build with one stack-usage file taken away; where this build system's tool is not installed it prints a named SKIP and the run still passes.</td><td><span class="mono">build-systems/bazel</span></td><td><span class="mono">scripts/verify-build-systems.sh</span></td></tr>
+      <tr><td>Analysis baseline: what changed in flags, sources and object code since a recorded build<br><span class="mono">feature.baseline</span></td><td><span class="chip major">Handled, with caveats</span></td><td>Flag and object-code changes are proven on hand-built evidence only; on the example, crates/ingest/tests/baseline_discovery_e2e.rs plants a changed source hash in a copied baseline and asserts the function is reported source-changed. CI also runs <code>butterfly baseline</code> and <code>butterfly changes --baseline</code> on the example and checks only that they exit cleanly. Tracked in <a href="https://github.com/dhaksh64/butterfly/issues/192">#192</a>.</td><td><span class="mono">c</span></td><td><span class="mono">crates/ingest/tests/synthetic.rs::baseline_compare_detects_flags_and_source_changes</span></td></tr>
+      <tr><td>Go to definition, from a ctags index<br><span class="mono">feature.go-to-definition</span></td><td><span class="chip good">Supported</span></td><td> Tracked in <a href="https://github.com/dhaksh64/butterfly/issues/193">#193</a>.</td><td><span class="mono">c-lib</span></td><td><span class="mono">crates/ingest/tests/tags.rs::produce_indexes_functions_headers_and_types</span></td></tr>
+      <tr><td>Provenance: every input named and hashed, with the caveats that apply<br><span class="mono">feature.provenance</span></td><td><span class="chip good">Supported</span></td><td> Tracked in <a href="https://github.com/dhaksh64/butterfly/issues/194">#194</a>.</td><td><span class="mono">c</span></td><td><span class="mono">crates/ingest/tests/e2e_demo_c.rs::provenance_names_every_input_of_the_example_and_carries_the_projection_caveat</span></td></tr>
+      <tr><td>Source revision: the git commit or SVN revision, and whether the files the build used are that revision's, judged by their hashes where the VCS allows it<br><span class="mono">feature.source-revision</span></td><td><span class="chip blocker">Not supported</span></td><td>Not yet demonstrated: ingest records it for git and SVN, and it is tested on temporary repositories (git: clean, modified, submodules, SHA-256, fsmonitor; SVN: mixed revisions, switched, sparse, externals, keywords and eol-style, a locked or newer-format working copy), but no example shows a clean and a modified build. SVN files with svn:keywords, svn:eol-style or svn:special are judged by svn status, not by hash. Tracked in <a href="https://github.com/dhaksh64/butterfly/issues/304">#304</a>.</td><td>&mdash;</td><td></td></tr>
+      <tr><td>Security posture: loopback by default, tokens, read-only network listeners<br><span class="mono">feature.security</span></td><td><span class="chip major">Handled, with caveats</span></td><td>The proof needs no fixture and opens no example: <code>butterfly serve</code> refuses a plain-HTTP network listener before any evidence is read, so the test has no fixture to skip for. The example is named for the other half -- a token demanded on API requests, exercised against examples/c in crates/cli/tests/serve_auth.rs on the evidence and variant-listing routes -- and that test skips where the example has not been built. Tracked in <a href="https://github.com/dhaksh64/butterfly/issues/195">#195</a>.</td><td><span class="mono">c</span></td><td><span class="mono">crates/cli/tests/serve_exposure.rs::a_network_listener_refuses_to_start_without_insecure_http</span></td></tr>
+      <tr><td>Dead-code candidates in the linked image<br><span class="mono">feature.dead-code</span></td><td><span class="chip good">Supported</span></td><td> Tracked in <a href="https://github.com/dhaksh64/butterfly/issues/196">#196</a>.</td><td><span class="mono">c</span></td><td><span class="mono">crates/ingest/tests/e2e_demo_c.rs::demo_c_end_to_end</span></td></tr>
+      <tr><td>The source-to-object review record<br><span class="mono">feature.source-to-object-review</span></td><td><span class="chip major">Handled, with caveats</span></td><td>Saving and removing a review is proven in a real browser, which ci-local runs only where Playwright is installed. The construct inventory that guides the review picks its vocabulary from the file extension, so C++ written in a <code>.h</code> header is read with the C vocabulary. Tracked in <a href="https://github.com/dhaksh64/butterfly/issues/196">#196</a>, <a href="https://github.com/dhaksh64/butterfly/issues/162">#162</a>.</td><td><span class="mono">c-per-test</span></td><td><span class="mono">ui/browser/checks/review.cjs::a-review-saves-reloads-and-can-be-removed</span></td></tr>
+      <tr><td>Finding your way around: search, shortcuts, jumping between uncovered regions<br><span class="mono">feature.navigation</span></td><td><span class="chip major">Handled, with caveats</span></td><td>Search is asserted on the example and the digit tab shortcuts on hand-written evidence; nothing asserts <code>j</code>/<code>k</code> or the <code>]</code>/<code>[</code> jump between uncovered regions. Tracked in <a href="https://github.com/dhaksh64/butterfly/issues/197">#197</a>, <a href="https://github.com/dhaksh64/butterfly/issues/157">#157</a>.</td><td><span class="mono">c-per-test</span></td><td><span class="mono">ui/browser/checks/requirements.cjs::search-narrows-and-navigates</span></td></tr>
+      <tr><td>Measured object coverage from an execution trace (--trace): QEMU -d in_asm,exec,nochain<br><span class="mono">feature.measured-coverage</span></td><td><span class="chip major">Handled, with caveats</span></td><td>Verified locally, not in hosted CI, and only on a host that has the toolchain: scripts/ci-local.sh builds this example and runs its suite where qemu-system-aarch64, the aarch64-unknown-none-softfloat target and a nightly with llvm-tools are all present, and prints a named SKIP where they are not -- so a green local run on a host without them has not exercised this row. Coverage is exact but execution counts are an upper bound: QEMU logs a block on entry, and an abandoned entry that cannot be proven impossible is still counted. One single-CPU trace from an emulator; multi-CPU logs are read per CPU and proven on hand-written logs only, as are the execlog and address-list formats. The viewer's Measured overlay is tested on hand-built evidence (ui/measured.test.cjs), not on this example. Tracked in <a href="https://github.com/dhaksh64/butterfly/issues/164">#164</a>.</td><td><span class="mono">rust-qemu</span></td><td><span class="mono">crates/ingest/tests/e2e_rust_qemu.rs::a_qemu_trace_yields_measured_instruction_and_outcome_coverage</span></td></tr>
+      <tr><td>Quickstart: from a built example to evidence, a summary and a report<br><span class="mono">feature.quickstart</span></td><td><span class="chip major">Handled, with caveats</span></td><td>CI runs the documented commands from ingest to report on the example as a smoke test: each must exit cleanly and the report must be non-empty, and nothing more is asserted of them. Tracked in <a href="https://github.com/dhaksh64/butterfly/issues/199">#199</a>.</td><td><span class="mono">c</span></td><td><span class="mono">scripts/ci-local.sh</span></td></tr>
+    </table>
+  </div>
+  <!-- /butterfly:matrix -->
+</section>
+
+<section id="limits">
+  <h2>What it will not claim</h2>
+  <p class="lede">The honesty features are the product. Every one of these is a caveat on the evidence rather than a silent guess.</p>
+  <ul>
+    <li><strong>Projection is not measurement.</strong> The footer of every page says which of the two its colours are, and every report says it too.</li>
+    <li><strong>Rust has no MC/DC.</strong> Current nightlies accept <code>-Zcoverage-options=branch|condition</code> but reject <code>mcdc</code>; stable emits no branch regions at all. So nothing invents pairs &mdash; but nothing announces the reason either: a Rust function's decision list is empty, and the MC/DC tab falls back to its generic &ldquo;Branch regions without MC/DC records&rdquo; table, or to &ldquo;No decisions in this function.&rdquo; The measured route via a trace is the practical answer.</li>
+    <li><strong>Uncommitted edits.</strong> A file matching the working tree but not HEAD was built from uncommitted changes, so the line ranges used to attribute commits may be shifted.</li>
+    <li><strong>A different checkout.</strong> A file matching neither is named, and the evidence says so.</li>
+    <li><strong>Shallow clones.</strong> Flagged, because every function's earliest visible commit is then the clone boundary rather than its origin.</li>
+    <li><strong>Squashed or rebased history</strong> collapses tickets into whichever commit survived. Not recoverable from git, so not pretended.</li>
+    <li><strong>Split or merged functions</strong> keep only the history of the lines they have now; a renamed function appears as deleted plus added — which is what its tests and callers see.</li>
+    <li><strong>Older LLVM.</strong> clang 18 exports MC/DC records without outcome counts or test vectors. Both layouts are read; the older one yields an empty truth table <em>and a caveat</em>.</li>
+    <li><strong>Exploratory builds</strong> are stamped as such throughout. They exist to show what the optimiser did, never for credit.</li>
+  </ul>
+</section>
+
+<section id="security">
+  <h2>Security posture</h2>
+  <p><code>butterfly serve</code> is a <strong>local viewer, unauthenticated by default</strong>, over data containing the complete source of your project. The defences follow from that:</p>
+  <ul>
+    <li><strong>Loopback by default.</strong> A non-loopback bind is refused unless you pass both <code>--allow-remote</code> and <code>--insecure-http</code>. The second flag acknowledges that the built-in server has no TLS, so the evidence and any bearer token cross the network in clear. Prefer an SSH tunnel, or a TLS-terminating reverse proxy. A proxy on the same host needs neither flag, because butterfly can stay on loopback.</li>
+    <li><strong>One variant, one sidecar.</strong> Serving several evidence files gives each its own resolutions file, named from the variant plus a digest of that name. The digest is what makes the mapping injective: sanitising alone sent <code>a/b</code> and <code>a_b</code> to one file, and anything past 64 characters to the same prefix, so two variants could overwrite each other&rsquo;s review decisions &mdash; and a hostile evidence file could aim at another variant&rsquo;s sidecar on purpose. Duplicate variant names, and any two variants that would share a sidecar, are refused at startup before a single one is read.</li>
+    <li><strong>Host-header allow-list.</strong> Without it, any web page you visit could reach the port by DNS rebinding and read the evidence.</li>
+    <li><strong>Content-Security-Policy</strong>, <code>nosniff</code> and <code>no-referrer</code> on both the viewer and the report — the standalone report carries the policy in a <code>&lt;meta&gt;</code> tag, so injected markup stays inert even in a file mailed to a reviewer.</li>
+    <li><strong>Bounded reads.</strong> Every artifact <code>ingest</code> reads &mdash; the coverage export, each source, objects, traces, the auxiliary files &mdash; is sized before it is read, against a per-kind cap and a budget for the whole run, as are the evidence and the resolutions sidecar <code>serve</code> loads. A crafted or truncated input fails with a sentence naming the file rather than by exhausting memory, and discovery classifies an unknown file by its magic number instead of reading it whole to find out. The defaults are generous, and every refusal names the <code>BUTTERFLY_MAX_&hellip;_MB</code> variable that would have let it through. The same readers also size the evidence <code>butterfly tags</code> and <code>butterfly claims</code> read (evidence cap), the requirements sidecar <code>claims</code> reads and the config <code>butterfly build</code> reads (auxiliary cap), the requirement documents <code>serve</code> re-hashes at startup (auxiliary cap, sharing the sidecar&rsquo;s budget), and each analysed source <code>/api/freshness</code> re-hashes (source cap, one budget per request) (<a href="https://github.com/dhaksh64/butterfly/issues/231">#231</a>). A <code>BUTTERFLY_UI_DIR</code> override is read under the auxiliary cap too.</li>
+    <li><strong>Helper programs run under one policy.</strong> Every program butterfly runs on its own behalf &mdash; <code>git</code>, <code>llvm-objdump</code>, <code>llvm-cov export</code>, <code>ctags</code>, <code>rustc</code> and the compiler&rsquo;s probes &mdash; runs by the absolute path it resolved and records, with the environment cleared to a short allow-list (no <code>GIT_DIR</code>, no token), a deadline (<code>BUTTERFLY_HELPER_TIMEOUT_SECS</code>, default 600) and a ceiling on each stream (<code>BUTTERFLY_MAX_HELPER_OUTPUT_MB</code>, default 4096, on stdout; 1&nbsp;MiB of stderr). Past either it is stopped at once, with whatever it started. At most <code>BUTTERFLY_MAX_HELPERS</code> run at a time. A tool you configure (<code>--llvm-bin</code>, <code>BUTTERFLY_LLVM_BIN</code>, <code>--ctags-bin</code>, <code>BUTTERFLY_CTAGS</code>) is used or refused, never swapped for another copy on <code>PATH</code>. Your own build commands are not helpers and are not bounded (<a href="https://github.com/dhaksh64/butterfly/issues/246">#246</a>).</li>
+    <li><strong>Evidence is validated on load.</strong> Every index is range-checked and a foreign schema rejected: a truncated or hostile file gives a named error, never a panic mid-render.</li>
+    <li><strong>Names from data never shape file paths</strong>, and counters saturate so a corrupt trace cannot overflow a count.</li>
+    <li><strong>Source reads are bounded by <code>--source-root</code></strong> (the working directory when you do not pass one). A coverage export&rsquo;s filenames are input like any other, and every source butterfly reads is embedded whole in the evidence you then serve and archive &mdash; so each name is resolved, symlinks and <code>..</code> included, and ingest fails, naming every offender, if one lands outside the root. A source with more than one name (a hard link) is refused the same way, because the kernel reports only one of a file&rsquo;s names and whether every name is inside the root cannot be established. Generated or vendored sources elsewhere are read only under <code>--allow-external-source</code>, which records a caveat saying which files came from outside.</li>
+    <li><strong>The viewer&rsquo;s freshness check reads only what you approved.</strong> The evidence names its sources and its repository, and the evidence is input like any other. A source is read only if it is inside <code>--source-root</code> (default: the working directory for <code>serve</code>, the project for <code>run</code>, the config&rsquo;s source root for <code>build</code>), placed by the kernel as <code>ingest</code> does; <code>git</code> runs only in <code>--repo</code> (default: the repository containing the source root), because a repository&rsquo;s own config can make <code>git</code> run a program. Anything else is reported as not checked &mdash; stale, never opened.</li>
+    <li><strong>Outputs are replaced, never truncated.</strong> The evidence, the change cache, the report, the baseline and every sidecar are written the same way, relative to one descriptor for the destination&rsquo;s directory. Each write goes to a temporary file beside it, is flushed to disk, then renamed over the top &mdash; so a reader sees the old document or the new one, never half of one, and an interrupted or failed write leaves the last complete document intact. Rename replaces the destination entry itself, so a symlink planted there is displaced rather than written through. The temporary is created exclusively under a name that cannot be guessed, so preplanting <em>it</em> as a link fails the open instead of truncating its target; butterfly says so on stderr and leaves the link&rsquo;s target untouched.</li>
+    <li><strong>Expensive work is bounded.</strong> The report, the freshness check and the gates run off the async threads, at most four at a time. Past that they get an immediate <code>503</code> with <code>Retry-After</code>, and the cheap routes are unaffected. The report is cached until a review changes it, and freshness for five seconds. No request is held open for more than a minute. Per-client rate limiting belongs in the reverse proxy in front, with TLS.</li>
+    <li><strong>A network listener needs a token, read-only included.</strong> Without one butterfly refuses to start, unless you pass <code>--allow-unauthenticated-remote</code>. That flag serves reads to anyone who can reach the port, and resolution writes come back 403 with the way to enable them. The token comes from exactly one of <code>--token-file &lt;path&gt;</code>, <code>BUTTERFLY_TOKEN</code> or <code>--token generate</code>. A literal <code>--token &lt;secret&gt;</code> still works but is deprecated, because it is visible in the process list. The token is then required on every API route, reads included. The viewer asks for it in a password field, or takes a minted one from the <code>#token=</code> fragment of the link butterfly prints; a browser never sends a fragment, so the token is never in a request target. A <code>?token=</code> URL is refused. <code>--read-only</code> refuses writes on any address. Loopback with no flags is unchanged. Authorization is attached to the routes, not inferred from the bind address, and startup prints the exposure and the authentication mode every time.</li>
+  </ul>
+  <div class="note stop">
+    <span class="tag">Treat these like a Makefile</span>
+    <p><code>butterfly build</code> runs the commands in your build config, and ingest runs <code>llvm-objdump</code> from your toolchain. Only run them on projects you trust. Evidence files embed absolute paths, the build host name and the full source text. A report carries less — the paths and hashes of its inputs, and any requirement text — but neither the host name nor the source. <strong>Redact before sending either outside your organisation.</strong></p>
+  </div>
+</section>
+
+<section id="arch">
+  <h2>Architecture</h2>
+  <pre><code>crates/model    evidence schema (serde)                    shared, no logic
+crates/ingest   parsers, CFG, gaps, stack, data refs,
+                trace, change, impact                      the qualification-path component
+crates/view     axum server + embedded UI                  presentation only
+crates/cli      the `butterfly` binary
+ui/             index.html, app.js, app.css                vanilla, no build step
+examples/       c · cpp · rust · c-lib · cpp-lib · rust-lib</code></pre>
+  <p><code>ingest</code> is deterministic and read-only with respect to its inputs; <code>serve</code> never modifies the evidence. The web UI is compiled into the binary, so an installed butterfly is a single self-contained file with nothing to copy or serve.</p>
+  <p><code>BUTTERFLY_UI_DIR=ui</code> serves the UI from disk for live editing; <code>BUTTERFLY_LLVM_BIN</code> points at the LLVM tools when they are not in the rustup component or on <code>PATH</code>.</p>
+</section>
+
+<section id="qual">
+  <h2>Qualification <span class="cite">§12.2, Table 12-1</span></h2>
+  <p>Butterfly is a <strong>browser over evidence</strong>, not a producer of certification credit. The criteria and the level are the <strong>applicant's</strong> determination for their own intended use, recorded in the PSAC, and not properties of the tool: a claim limited to the objectives butterfly automates is DO-178C §12.2.2 <strong>Criteria 3</strong>, which Table 12-1 puts at <strong>TQL-5</strong> for Levels A to D. Review of the output by a human is what keeps the claim at Criteria 3 rather than Criteria 2; it does <em>not</em> remove the need to qualify the tool that computed it.</p>
+  <p>Nor is the qualified set the ingest parser alone — the viewer and the report present what ingest produced, and a project claiming credit from what they show is claiming credit from them. The exploratory-build function (<code>butterfly build</code>) is the one that must be <em>excluded</em>, because its output is object code. The project's own analysis of what a TQL-5 package would take is <a href="https://github.com/dhaksh64/butterfly/blob/8104609a78c0e629db0b338c36bdbd3b9f33b5c4/docs/qualification/DO-330-assessment.md">docs/qualification/DO-330-assessment.md</a>.</p>
+  <div class="note warn">
+    <span class="tag">The line to hold</span>
+    <p>The moment butterfly is presented as <em>replacing</em> a verification activity — rather than helping a human perform one — the DO-330 burden lands in full. Every caveat, every “projected, not measured”, and every refusal to guess exists to keep that line clear.</p>
+  </div>
+</section>
+
+<footer>
+  <p>Butterfly · free and open source under MIT OR Apache-2.0. Analysis results produced by the tool are the property of the analysed project.</p>
+  <p>References throughout are to DO-178C and its supplements, CAST-12 (source-to-object traceability), CAST-17 (object-code coverage), CAST-19 (data and control coupling) and DO-330 (tool qualification).</p>
+</footer>
+
+</main>
+</div>
+</body>
+</html>

@@ -1,0 +1,16 @@
+# SPDX-License-Identifier: MIT OR Apache-2.0
+# Copyright (c) 2026 Dhakshnamoorthy Durgaraj
+#
+# Actions are pinned to a commit SHA (review of #64), which means Dependabot
+# is the only thing that moves them: it proposes the PR, and CI on that PR is
+# what a human actually reviews before merging a new SHA in.
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    # Monthly, not weekly: every proposal is a pull request, and every pull
+    # request is a billed CI run. A pinned action a few weeks behind is not a
+    # risk worth four runs a month; an advisory against one would be raised
+    # by GitHub regardless of this schedule.
+    schedule:
+      interval: "monthly"

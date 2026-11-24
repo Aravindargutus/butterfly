@@ -1,0 +1,32 @@
+# Exploratory multi-variant build for the C demo.
+#   butterfly build examples/c/butterfly-build.toml --serve
+[project]
+name = "demo"
+source_root = "."
+out_dir = "variants"
+
+[compiler]
+kind = "clang"
+cc = "clang"
+sources = ["demo.c"]
+common_flags = ["-std=c11", "-Wall", "-Wextra", "-g"]
+
+[coverage]
+flags = ["-O0", "-fprofile-instr-generate", "-fcoverage-mapping", "-fcoverage-mcdc"]
+run = ["{exe}"]
+
+[[variant]]
+name = "O0"
+flags = ["-O0", "-fstack-usage"]
+
+[[variant]]
+name = "O1"
+flags = ["-O1", "-fstack-usage"]
+
+[[variant]]
+name = "O2"
+flags = ["-O2", "-fstack-usage"]
+
+[[variant]]
+name = "Os"
+flags = ["-Os", "-fstack-usage"]

@@ -1,0 +1,398 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Copyright (c) 2026 Dhakshnamoorthy Durgaraj
+
+use butterfly_model::*;
+use std::collections::BTreeMap;
+
+fn minimal() -> Evidence {
+    let f = Function {
+        id: 0,
+        name: "f".into(),
+        mangled: "f".into(),
+        file_id: 0,
+        line_start: 1,
+        line_end: 2,
+        count: 3,
+        instantiations: 1,
+        tests: Vec::new(),
+        requirements: vec!["LLR-1".into()],
+        line_requirements: BTreeMap::new(),
+        lines_total: 2,
+        lines_covered: 2,
+        branches: vec![],
+        decisions: vec![],
+        complexity: Complexity::default(),
+        callees: vec![],
+        callers: vec![],
+        object: Some(ObjectFn {
+            symbol: "f".into(),
+            variant: None,
+            address: 0x1000,
+            size: 8,
+            blocks: vec![],
+            gaps: vec![Gap {
+                id: 0,
+                kind: GapKind::LineZero,
+                addr_start: 0x1000,
+                addr_end: 0x1000,
+                line: None,
+                description: "x".into(),
+                key: "f@line-zero@1000".into(),
+                class: None,
+            }],
+            instr_total: 2,
+            instr_projected_covered: 2,
+            instr_projected_uncovered: 0,
+            instr_unknown: 0,
+            instr_measured_covered: None,
+            disagreements: vec![],
+            outcome_edges_total: 0,
+            outcome_edges_measured: None,
+            unreachable_blocks: vec![],
+            compiler_generated: BTreeMap::new(),
+        }),
+        variants: vec![],
+        symbol_id: None,
+        data_refs: vec![],
+        variables: Vec::new(),
+        constructs: BTreeMap::from([("if".to_string(), 1)]),
+        inlined: vec![],
+        own_lines: None,
+        folded_calls: vec![],
+        indirect_calls: vec![],
+        pointer_callers: vec![],
+        commits: vec![],
+        origin: None,
+        unrecorded_within: None,
+    };
+    Evidence {
+        tests: Vec::new(),
+        requirements_universe: Vec::new(),
+        schema: SCHEMA.into(),
+        provenance: Provenance { tool: "butterfly".into(), tool_version: "t".into(), caveats: vec!["cav".into()], ..Default::default() },
+        summary: Summary { functions: 1, functions_executed: 1, lines_total: 2, lines_covered: 2, gaps_total: 1, ..Default::default() },
+        files: vec![SourceFile {
+            id: 0,
+            path: "/a.c".into(),
+            display: "a.c".into(),
+            sha256: String::new(),
+            text: vec!["int f(){".into(), "}".into()],
+            lines: vec![LineCov { count: Some(3) }, LineCov { count: Some(3) }],
+            function_ids: vec![0],
+            lines_total: 2,
+            lines_covered: 2,
+        }],
+        functions: vec![f],
+        symbols: vec![],
+        globals: vec![],
+        image: None,
+        measured: None,
+        baseline: None,
+        changes: None,
+    }
+}
+
+#[test]
+fn report_renders_sections_and_resolutions() {
+    let ev = minimal();
+    let res = Resolutions {
+        schema: RESOLUTIONS_SCHEMA.into(),
+        entries: vec![
+            Resolution { key: "f@line-zero@1000".into(), category: "analysis".into(), justification: "prologue".into(), author: "r".into(), date: "2026-01-01".into() },
+            Resolution { key: "s2o:f".into(), category: "traceable".into(), justification: "compared".into(), author: "r".into(), date: "2026-01-01".into() },
+        ],
+    };
+    let html = butterfly_view::report::render(&ev, &res, None, Some("O0"));
+    for needle in [
+        "Software Verification Results",
+        "1. Summary",
+        "2. Requirements coverage",
+        "5. Functions",
+        "7. Object-code gaps",
+        "8. Coverage justifications",
+        "9. Source-to-object",
+        "6. Compiler-generated",
+        "LLR-1",
+        "ANALYSIS",
+        "prologue",
+        "traceable — compared",
+        "variant <b>O0</b>",
+        "cav",
+    ] {
+        assert!(html.contains(needle), "report lacks {needle:?}");
+    }
+    assert!(!html.contains("<script"), "report must be script-free");
+    // unresolved gap shows up as such when no resolutions are given
+    let html2 = butterfly_view::report::render(&ev, &Resolutions::default(), None, None);
+    assert!(html2.contains("unresolved"));
+}
+
+/// The report says which build of butterfly wrote it, not only which
+/// version (#117): the commit and the tree state are in the header line and
+/// in the Build and provenance table, and evidence that predates the field
+/// says so rather than reading as a clean build.
+#[test]
+fn report_names_the_tool_commit_and_tree_state() {
+    let mut ev = minimal();
+    let id = "0123456789abcdef0123456789abcdef01234567";
+    ev.provenance.tool_commit = id.into();
+    ev.provenance.tool_dirty = Some(true);
+    let html = butterfly_view::report::render(&ev, &Resolutions::default(), None, None);
+    assert!(html.contains(&format!("Generated by butterfly t (commit {id}, tree modified at build)")), "header: {html}");
+    assert!(html.contains(&format!("<tr><td>tool commit</td><td class=mono>commit {id}, tree modified at build</td></tr>")), "table: {html}");
+
+    let html = butterfly_view::report::render(&minimal(), &Resolutions::default(), None, None);
+    assert!(html.contains("Generated by butterfly t (commit not recorded)"), "{html}");
+    assert!(!html.contains("clean tree"), "evidence without the field never reads as a clean build");
+}
+
+/// A `not-traceable` review is a recorded verdict (docs/butterfly.html:516,
+/// "Resolving a gap"), and a finding needing action: the report shows it as one,
+/// not in the colour of a pass (#325 D5).
+#[test]
+fn a_not_traceable_review_is_recorded_and_flagged() {
+    let ev = minimal();
+    let res = Resolutions {
+        schema: RESOLUTIONS_SCHEMA.into(),
+        entries: vec![Resolution { key: "s2o:f".into(), category: "not-traceable".into(), justification: "spill code".into(), author: "r".into(), date: "2026-01-01".into() }],
+    };
+    res.validate().expect("not-traceable is a valid review verdict");
+    let html = butterfly_view::report::render(&ev, &res, None, None);
+    assert!(html.contains("not-traceable — spill code"), "the functions table carries the verdict");
+    assert!(html.contains("<td class=bad>not-traceable</td>"), "the review record flags it");
+}
+
+/// The numbers in front of the report's `<h2>` headings, in document order.
+fn section_numbers(html: &str) -> Vec<usize> {
+    html.split("<h2>")
+        .skip(1)
+        .map(|h| h.split_once(". ").and_then(|(n, _)| n.parse().ok()).unwrap_or_else(|| panic!("heading without a number: {:?}", &h[..h.len().min(40)])))
+        .collect()
+}
+
+/// A report that numbers its sections 1-10, 12, 13 reads as if section 11 had
+/// been removed before delivery (#156). Three sections are conditional, so the
+/// numbering has to hold whichever of them the evidence carries.
+#[test]
+fn report_sections_are_numbered_consecutively() {
+    let bare = minimal();
+    let mut full = minimal();
+    full.image = Some(Image::default());
+    full.symbols = vec![Symbol::default()];
+    full.changes = Some(Changes::default());
+    let mut no_image = full.clone();
+    no_image.image = None;
+
+    for (what, ev, sections) in [("no optional section", &bare, 10), ("every section", &full, 13), ("no image", &no_image, 12)] {
+        let html = butterfly_view::report::render(ev, &Resolutions::default(), None, None);
+        let got = section_numbers(&html);
+        assert_eq!(got, (1..=sections).collect::<Vec<_>>(), "{what}: section numbers must run 1..={sections} with no hole");
+    }
+}
+
+/// A constructor's or destructor's variants are object code of the function
+/// (#266): their gaps are listed and counted with its own, marked with the
+/// variant they are in, and its object figure adds them in.
+#[test]
+fn report_counts_and_lists_a_functions_variants() {
+    let mut ev = minimal();
+    let body = ev.functions[0].object.clone().unwrap();
+    ev.functions[0].variants.push(ObjectFn {
+        symbol: "_ZN1fD0Ev".into(),
+        variant: Some("D0".into()),
+        address: 0x2000,
+        instr_total: 3,
+        instr_projected_covered: 0,
+        instr_unknown: 3,
+        gaps: vec![Gap {
+            id: 0,
+            kind: GapKind::UncountedVariant,
+            addr_start: 0x2000,
+            key: "_ZN1fD0Ev@uncounted-variant@2000".into(),
+            description: "no counter".into(),
+            ..Default::default()
+        }],
+        ..body
+    });
+    ev.summary.gaps_total = 2;
+    let res = Resolutions {
+        schema: RESOLUTIONS_SCHEMA.into(),
+        entries: vec![Resolution { key: "f@line-zero@1000".into(), category: "analysis".into(), justification: "prologue".into(), author: "r".into(), date: "2026-01-01".into() }],
+    };
+    let html = butterfly_view::report::render(&ev, &res, None, None);
+    assert!(html.contains("<td>uncounted-variant</td><td>1</td>"), "the gap-kind table lacks the variant's gap");
+    assert!(html.contains("f [D0]"), "the variant's gap is not listed under its function");
+    assert!(html.contains(">1/2<"), "one of the function's two gaps is unresolved");
+    assert!(html.contains("2/5 <small class=muted>incl. D0</small>"), "the function's object figure leaves out its variant");
+}
+
+/// The *Coverage justifications* section's rows, as `(row html)` keyed by a
+/// marker found in the row.
+fn justification_row(html: &str, marker: &str) -> String {
+    let s = &html[html.find("Coverage justifications").expect("the section")..];
+    let s = &s[..s.find("<h2").unwrap_or(s.len())];
+    let i = s.find(marker).unwrap_or_else(|| panic!("{marker} is in the section: {s}"));
+    let start = s[..i].rfind("<tr>").unwrap();
+    let end = i + s[i..].find("</tr>").unwrap();
+    s[start..end].to_string()
+}
+
+/// #335 review (P2), README "Report": a retained `branch:`, `cond:` or
+/// `line:` record whose owner still exists but whose obligation does not --
+/// a deleted branch, a decision no longer there, a line that does not exist
+/// or is not instrumented -- closes nothing (`Resolutions::stale_keys`). The
+/// report travels without the stderr warning `load_resolutions` gives, so it
+/// says so itself, with the original key, rather than presenting the record
+/// as a current target. A record that does name a current obligation is shown
+/// as before.
+#[test]
+fn a_stale_justification_is_labelled_and_closes_nothing() {
+    let mut ev = minimal();
+    ev.functions[0].branches = vec![Branch { line: 1, col: 5, line_end: 1, col_end: 9, true_count: 1, false_count: 0, direction_known: true, decision_ordinal: None }];
+    ev.functions[0].decisions = vec![Decision {
+        line: 1,
+        col: 5,
+        line_end: 1,
+        col_end: 9,
+        true_count: 1,
+        false_count: 0,
+        conditions: vec![Condition { index: 1, line: 1, col: 5, true_count: 1, false_count: 0, independence_covered: false, pair: None }],
+        vectors: vec![],
+        mcdc_covered: false,
+        decision_ordinal: None,
+    }];
+    // line 2 exists but is not instrumented
+    ev.files[0].lines[1].count = None;
+    let e = |key: &str, why: &str| Resolution { key: key.into(), category: "analysis".into(), justification: why.into(), author: "r".into(), date: "2026-01-01".into() };
+    let res = Resolutions {
+        schema: RESOLUTIONS_SCHEMA.into(),
+        entries: vec![
+            e("branch:0:1:5:F", "VALID-BRANCH"),
+            e("cond:0:1:5:1", "VALID-COND"),
+            e("line:0:1", "VALID-LINE"),
+            e("branch:0:999:1:T", "STALE-BRANCH"),
+            e("cond:0:999:1:1", "STALE-COND"),
+            e("line:0:999", "STALE-LINE"),
+            e("line:0:2", "UNINSTRUMENTED-LINE"),
+        ],
+    };
+    let mut stale = res.stale_keys(&ev);
+    stale.sort();
+    assert_eq!(stale, ["branch:0:999:1:T", "cond:0:999:1:1", "line:0:2", "line:0:999"], "the model agrees which close nothing");
+    let html = butterfly_view::report::render(&ev, &res, None, None);
+    const LABEL: &str = "stale: not in the current evidence; closes no obligation";
+    for (marker, key) in [("STALE-BRANCH", "branch:0:999:1:T"), ("STALE-COND", "cond:0:999:1:1"), ("STALE-LINE", "line:0:999"), ("UNINSTRUMENTED-LINE", "line:0:2")] {
+        let r = justification_row(&html, marker);
+        assert!(r.contains(LABEL), "{marker} is labelled stale: {r}");
+        assert!(r.contains(key), "{marker} keeps its original key: {r}");
+        assert!(!r.contains("branch outcome") && !r.contains("MC/DC condition") && !r.contains("a.c:"), "{marker} is not shown as a current target: {r}");
+    }
+    let r = justification_row(&html, "VALID-BRANCH");
+    assert!(!r.contains("stale") && r.contains("branch outcome") && r.contains("L1:5, outcome F"), "{r}");
+    let r = justification_row(&html, "VALID-COND");
+    assert!(!r.contains("stale") && r.contains("MC/DC condition") && r.contains("condition 1"), "{r}");
+    let r = justification_row(&html, "VALID-LINE");
+    assert!(!r.contains("stale") && r.contains("a.c:1"), "{r}");
+}
+
+/// A construct name is evidence text like any other, so it is escaped where
+/// the traceability table prints it: a key carrying markup must not add a
+/// row to a certification artifact (#337).
+#[test]
+fn a_construct_name_carrying_markup_is_escaped_in_the_traceability_table() {
+    let mut ev = minimal();
+    let forged = "<tr><td>memcpy</td><td>9</td><!--";
+    ev.functions[0].constructs = BTreeMap::from([(forged.to_string(), 1)]);
+    let html = butterfly_view::report::render(&ev, &Resolutions::default(), None, None);
+    assert!(!html.contains(forged), "the construct name reached the report as markup");
+    assert!(html.contains("&lt;tr&gt;&lt;td&gt;memcpy&lt;/td&gt;&lt;td&gt;9&lt;/td&gt;&lt;!--"), "and it is shown, escaped");
+}
+
+/// The requirements sidecar's digests are shortened for display by
+/// characters, not bytes: one that is not ASCII -- refused by `validate()`,
+/// but `render` is a library entry point too -- renders rather than
+/// panicking on a char boundary (#338).
+#[test]
+fn a_non_ascii_source_digest_renders_without_panicking() {
+    use butterfly_model::reqtext::{Requirement, Requirements, Source, REQTEXT_SCHEMA};
+    let ev = minimal();
+    let sha = format!("{}é{}", "a".repeat(11), "b".repeat(10));
+    let src = |p: &str| Source { path: p.into(), sha256: sha.clone(), count: 1 };
+    // one source: the section names it once; two: each statement names its own
+    for sources in [vec![src("llr.yaml")], vec![src("llr.yaml"), src("hlr.yaml")]] {
+        let reqs = Requirements {
+            schema: REQTEXT_SCHEMA.into(),
+            sources,
+            entries: vec![Requirement { id: "LLR-1".into(), text: "shall".into(), ..Default::default() }],
+            ..Default::default()
+        };
+        assert!(reqs.validate().is_err(), "the sidecar itself is refused on load");
+        let html = butterfly_view::report::render(&ev, &Resolutions::default(), Some(&reqs), None);
+        assert!(html.contains(&format!("{}é", "a".repeat(11))), "the first twelve characters are shown");
+        assert!(!html.contains(&sha), "and no more");
+    }
+}
+
+/// `createdUnix` comes from the evidence and from the baseline it records,
+/// and neither is range-checked. The largest one there is renders at once,
+/// as a date, instead of walking ~5.8e11 years one at a time while holding
+/// a job slot (#339).
+#[test]
+fn a_huge_created_unix_renders_at_once() {
+    let mut ev = minimal();
+    ev.provenance.created_unix = u64::MAX;
+    ev.baseline = Some(BaselineCheck { path: "b.json".into(), created_unix: u64::MAX, status: "matches".into(), ..Default::default() });
+    let t = std::time::Instant::now();
+    let html = butterfly_view::report::render(&ev, &Resolutions::default(), None, None);
+    assert!(t.elapsed() < std::time::Duration::from_secs(2), "rendering took {:?}", t.elapsed());
+    assert!(html.contains("evidence created 584554051223-11-09"), "the evidence date");
+    assert!(html.contains("frozen 584554051223-11-09"), "the baseline date");
+}
+
+#[test]
+fn helper_call_with_pipe_in_callee_name_does_not_corrupt_class_or_callee() {
+    let mut ev = minimal();
+    ev.functions[0].object = Some(ObjectFn {
+        symbol: "f".into(),
+        gaps: vec![Gap {
+            id: 0,
+            kind: GapKind::HelperCall,
+            key: "f@helper-call@1000".into(),
+            addr_start: 0x1000,
+            addr_end: 0x1004,
+            line: Some(1),
+            description: "call to `ns::operator||`".into(),
+            class: Some("core-lib".into()),
+        }],
+        ..Default::default()
+    });
+    let html = butterfly_view::report::render(&ev, &Resolutions::default(), None, None);
+    assert!(html.contains("<td>helper-call / core-lib</td>"), "{html}");
+    assert!(html.contains("<td>call to <code>ns::operator||</code></td>"), "{html}");
+}
+
+#[test]
+fn ordinal_cond_key_renders_and_stale_requirement_warning_shows_banner() {
+    let mut ev = minimal();
+    ev.functions[0].decisions = vec![Decision {
+        line: 1,
+        col: 5,
+        line_end: 1,
+        col_end: 9,
+        true_count: 1,
+        false_count: 0,
+        conditions: vec![Condition { index: 0, line: 1, col: 5, true_count: 1, false_count: 0, independence_covered: false, pair: None }],
+        vectors: vec![],
+        mcdc_covered: false,
+        decision_ordinal: Some(0),
+    }];
+    let res = Resolutions {
+        schema: RESOLUTIONS_SCHEMA.into(),
+        entries: vec![Resolution { key: "cond:0:1:#0:0".into(), category: "analysis".into(), justification: "ORD-COND".into(), author: "r".into(), date: "2026-01-01".into() }],
+    };
+    let html = butterfly_view::report::render_with_warnings(&ev, &res, None, None, &["docs/llr.md has changed".into()]);
+    let row = justification_row(&html, "ORD-COND");
+    assert!(!row.contains("stale"), "ordinal cond key is current: {row}");
+    assert!(row.contains("decision at L1:#0, condition 0"), "{row}");
+    assert!(html.contains("Requirement statements below may be STALE: docs/llr.md has changed."), "{html}");
+}

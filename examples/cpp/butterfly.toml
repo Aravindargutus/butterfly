@@ -1,0 +1,12 @@
+# SPDX-License-Identifier: MIT OR Apache-2.0
+# Copyright (c) 2026 Dhakshnamoorthy Durgaraj
+#
+# How butterfly finds requirement tags in this project. Each pattern is a
+# regex; capture group 1 is the requirement ID. `scope` decides where to look:
+#   header = the comment block immediately above the function (default)
+#   body   = inside the function, so a tag can mark one specific line
+#   both   = both of the above
+[requirements]
+patterns = ['@satisfies\s+([A-Za-z0-9_.:/-]+)', '@verifies\s+([A-Za-z0-9_.:/-]+)']
+scope = "both"
+lookback = 30

@@ -1,0 +1,8 @@
+# Project configuration for butterfly.
+# Requirement tags: each pattern is a regex; capture group 1 (or the whole
+# match) is the requirement ID. `scope` says where to look: the comment block
+# above the function (`header`), the function body (`body`), or `both`.
+[requirements]
+patterns = ['@satisfies\s+([A-Za-z0-9_.:/-]+)', '@verifies\s+([A-Za-z0-9_.:/-]+)']
+scope = "header"
+lookback = 30

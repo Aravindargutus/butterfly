@@ -1,0 +1,11 @@
+# SPDX-License-Identifier: MIT OR Apache-2.0
+# Copyright (c) 2026 Dhakshnamoorthy Durgaraj
+#
+# Chosen to fit the code that is already here rather than to rewrite it.
+# butterfly writes wide, dense lines -- a match arm that classifies an
+# instruction, a struct literal that builds a test fixture -- and the default
+# 100 columns would have reflowed 773 places, most of them for the worse.
+# At 180 with the small-item heuristics turned off, 266 places move, and
+# those are real normalisations rather than an argument with the house style.
+max_width = 180
+use_small_heuristics = "Max"

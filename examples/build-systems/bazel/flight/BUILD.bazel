@@ -1,0 +1,72 @@
+# SPDX-License-Identifier: MIT OR Apache-2.0
+# Copyright (c) 2026 Dhakshnamoorthy Durgaraj
+#
+# The examples/c-lib library, built for butterfly by Bazel.
+#
+# The shape to copy into your own project is the two `cc_binary` targets: one
+# instrumented and run for coverage, one clean and certified. They must come
+# from the same `srcs`, or the coverage you measured is not the code you
+# analysed.
+load("@rules_cc//cc:defs.bzl", "cc_binary")
+load(":butterfly.bzl", "butterfly_evidence_dir")
+
+COMMON_COPTS = [
+    # Bazel compiles in a sandbox whose path is different for every action.
+    # Without this, clang records that path in the coverage mapping and the
+    # filenames in coverage.json point at directories that no longer exist by
+    # the time anything reads them. `.` makes them execroot-relative.
+    "-ffile-compilation-dir=.",
+    "-std=c11",
+    "-Wall",
+    "-Wextra",
+    "-g",
+    "-O0",
+] + select({
+    # Bazel's Linux toolchain adds -fstack-protector, unlike c-lib/build.sh.
+    # Match that reference fixture so the identity check compares the same
+    # generated checks and helper calls as well as the same C sources.
+    "@platforms//os:linux": ["-fno-stack-protector"],
+    "//conditions:default": [],
+})
+
+# ---------------------------------------------------------------- 1. coverage
+# Instrumented. Nothing here is certified: it exists only to measure which
+# source constructs were exercised.
+cc_binary(
+    name = "flight-instr",
+    srcs = ["//:sources"],
+    copts = COMMON_COPTS + [
+        "-fprofile-instr-generate",
+        "-fcoverage-mapping",
+        "-fcoverage-mcdc",
+    ],
+    # the instrumentation runtime has to be linked in as well as compiled in
+    linkopts = ["-fprofile-instr-generate"],
+    deps = ["//:headers"],
+)
+
+# ---------------------------------------------------------- 2. the real build
+# No instrumentation. This is the image that is certified and the one
+# butterfly disassembles; the coverage above is only projected onto it.
+#
+# `-fstack-usage` writes one .su per object. Bazel keeps those in its output
+# tree rather than beside the binary, so the rule below collects them.
+cc_binary(
+    name = "flight",
+    srcs = ["//:sources"],
+    copts = COMMON_COPTS + [
+        "-fstack-usage",
+    ],
+    deps = ["//:headers"],
+)
+
+# --------------------------------------------- 3. one directory to ingest
+# Runs the instrumented binary, merges and exports the profile, gathers the
+# .su files and writes build-info.txt -- everything `butterfly ingest` looks
+# for, in one place. The flags it records are read off the two targets above
+# and the C++ toolchain, not repeated here.
+butterfly_evidence_dir(
+    name = "evidence",
+    analysis_binary = ":flight",
+    instrumented_binary = ":flight-instr",
+)

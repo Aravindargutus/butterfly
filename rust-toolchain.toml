@@ -1,0 +1,6 @@
+# Pinned, same as the ARINC 653 project: an audited evidence tool must be
+# rebuildable from archived inputs. llvm-tools supplies llvm-cov/profdata/objdump.
+[toolchain]
+channel = "1.97.1"
+components = ["rustfmt", "clippy", "llvm-tools"]
+profile = "minimal"

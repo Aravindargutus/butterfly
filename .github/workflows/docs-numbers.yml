@@ -1,0 +1,104 @@
+# SPDX-License-Identifier: MIT OR Apache-2.0
+# Copyright (c) 2026 Dhakshnamoorthy Durgaraj
+#
+# The numbers an example README states are checked on the changes that can
+# move them (#158, review of #243).
+#
+# crates/ingest/tests/example_numbers.rs reads examples/*/README.md: the
+# `butterfly:numbers` block has to match what the test asserts, and no
+# README may print an instruction or gap count as fact without saying whose
+# toolchain produced it. Those are prose checks, and prose is exactly what
+# ci.yml does not run on -- it has `paths-ignore: ['**/*.md', ...]` for both
+# events (#147), written when nothing under crates/ read a Markdown file.
+# That is no longer true, so a pull request that edits only a numbers block,
+# or restores an unqualified instruction count, would have changed the one
+# thing these checks exist to catch and run neither of them.
+#
+# Why a separate workflow rather than un-ignoring Markdown in ci.yml: that
+# would put every README edit through the 45-minute `test` job -- clang,
+# LLVM, universal-ctags, seven example builds, an npm install and a
+# Playwright browser download. #147 dropped a whole macOS leg to avoid
+# paying for runs that buy nothing; making prose the most expensive kind of
+# change would undo it. This job needs the pinned toolchain and nothing
+# else: no clang, no LLVM, no node, no browser, and not one built example --
+# the two tests it runs open Markdown files and close them again.
+#
+# Cost, measured: the test binary builds cold in 14s on the author's machine
+# (Apple M-series) and the two tests run in 0.01s. On a Linux runner, with
+# the toolchain install and a cold cargo cache, budget ~2 billed minutes per
+# triggering event, and well under one once Swatinem/rust-cache is warm.
+# It adds nothing to ci.yml, whose triggers and jobs are unchanged; it adds
+# ~2 minutes to documentation-only pull requests, which currently run no
+# job at all. The showcase workflow is the precedent for the shape.
+name: docs-numbers
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "examples/**/*.md"
+      - ".github/workflows/docs-numbers.yml"
+  # Hosted minutes are budgeted (#308): only pull requests into main start
+  # a run, and only once they are ready for review (the draft guard on
+  # every job below); stacked and draft pull requests are validated with
+  # scripts/ci-local.sh instead.
+  pull_request:
+    branches: [main]
+    # `edited` is for one transition only: a ready pull request stacked on
+    # another branch, retargeted to main, emits `edited` and nothing else.
+    # Any other edit (title, description) is filtered out by the job guard
+    # and kept out of the concurrency group of real runs (#309 review).
+    types: [opened, synchronize, reopened, ready_for_review, edited]
+    paths:
+      - "examples/**/*.md"
+      - ".github/workflows/docs-numbers.yml"
+
+concurrency:
+  # an edit that changed nothing but text runs in a group of its own, so it
+  # can never cancel (or queue behind) a real run (#309 review)
+  group: docs-numbers-${{ github.event_name }}-${{ github.ref }}${{ (github.event.action == 'edited' && !github.event.changes.base) && format('-noop-{0}', github.run_id) || '' }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: -D warnings
+
+jobs:
+  numbers:
+    # a draft is work in progress, validated locally, and an `edited` event
+    # counts only when it retargeted the base; skipped jobs cost nothing (#308)
+    if: ${{ !github.event.pull_request.draft && (github.event.action != 'edited' || github.event.changes.base) }}
+    name: the READMEs state the numbers the tests assert
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Toolchain (pinned by rust-toolchain.toml)
+        run: rustup show
+
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+
+      # Only the two tests that read Markdown. The other four in the file
+      # ingest a built example and belong to ci.yml's `test` job, which has
+      # the fixtures; running them here would report a fixture this job was
+      # never meant to build.
+      #
+      # --exact, and then the count is checked: a filter that matches
+      # nothing exits 0 with "0 passed", so a renamed test would turn this
+      # job into a green no-op -- the failure mode #227 is about.
+      - name: The README number checks
+        run: |
+          cargo test --locked -p butterfly-ingest --test example_numbers -- \
+            --nocapture --exact \
+            every_readme_states_the_numbers_this_test_asserts \
+            no_readme_prints_an_object_derived_count_as_a_fact \
+            2>&1 | tee docs-numbers.log
+          test "${PIPESTATUS[0]}" -eq 0
+          if ! grep -q "test result: ok. 2 passed" docs-numbers.log; then
+            echo "::error::the two README number checks did not both run -- were they renamed? This job must name them exactly."
+            exit 1
+          fi

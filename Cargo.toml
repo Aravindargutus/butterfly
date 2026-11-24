@@ -1,0 +1,40 @@
+[workspace]
+resolver = "2"
+members = ["crates/model", "crates/ingest", "crates/view", "crates/cli", "crates/testsupport"]
+
+[workspace.package]
+version = "0.2.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/Aravindargutus/butterfly"
+homepage = "https://github.com/Aravindargutus/butterfly"
+rust-version = "1.85"
+
+[workspace.dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+anyhow = "1"
+clap = { version = "4", features = ["derive"] }
+object = { version = "0.36", default-features = false, features = ["read", "std"] }
+gimli = { version = "0.31", default-features = false, features = ["read", "std"] }
+# Pure Rust, no C libyaml behind it: serde_yaml is archived, serde_yml carries
+# RUSTSEC-2025-0068 (unsound) and unsafe-libyaml RUSTSEC-2023-0075, and an
+# unsoundness advisory in a certification tool's own tree is not a thing to
+# have to explain. `encoding` is off: requirements files are UTF-8.
+yaml-rust2 = { version = "0.12", default-features = false }
+sha2 = "0.10"
+# Blob ids for SHA-1 repositories (#300), with the collision detection git
+# itself uses: a file crafted to collide must not read as the committed one.
+sha1-checked = "0.10"
+rustc-demangle = "0.1"
+cpp_demangle = "0.4"
+axum = "0.7"
+# `sync` and `time` bound the viewer's expensive routes -- a semaphore and
+# timeouts (#67). Both were already compiled in through hyper and axum; this
+# names them rather than relying on that, and adds no crate.
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "fs", "sync", "time"] }
+libc = "0.2"
+# Test-only: unpredictable, 0700 scratch directories, instead of
+# `temp_dir()/butterfly-<tag>-<pid>`, which a local user could pre-plant as a
+# symlink on a shared machine (#344).
+tempfile = "3"
