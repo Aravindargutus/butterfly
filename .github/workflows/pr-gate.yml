@@ -1,0 +1,76 @@
+name: Pull request validation
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review, edited]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-validation-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  scope:
+    name: Check documentation and select tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      full: ${{ steps.paths.outputs.full }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Select suite from the complete PR diff
+        id: paths
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          git diff --check "$BASE...$HEAD_SHA"
+          python3 - <<'PY'
+          import os, subprocess
+          diff = subprocess.check_output(["git", "diff", "--no-renames", "--name-only", "-z",
+                                          os.environ["BASE"] + "..." + os.environ["HEAD_SHA"], "--"])
+          def docs_only(path):
+              # Example READMEs contain numbers asserted by Rust tests.
+              if path.startswith(b"examples/"):
+                  return False
+              return (path.endswith(b".md") or path.startswith((b"docs/", b".github/ISSUE_TEMPLATE/"))
+                      or path in (b"NOTICE", b"LICENSE-MIT", b"LICENSE-APACHE"))
+          full = any(not docs_only(p) for p in diff.split(b"\0") if p)
+          with open(os.environ["GITHUB_OUTPUT"], "a") as output:
+              print("full=" + str(full).lower(), file=output)
+          PY
+      - name: Verify the documentation and rebuild the showcase
+        run: |
+          node --test ui/matrix_docs.test.cjs ui/showcase_{toml,build,capture}.test.cjs
+          node scripts/showcase/build.cjs --dir docs/showcase
+          git diff --exit-code -- docs/showcase/index.html
+
+  suite:
+    needs: scope
+    if: needs.scope.outputs.full == 'true'
+    uses: ./.github/workflows/ci.yml
+
+  gate:
+    name: Butterfly PR check
+    if: always()
+    needs: [scope, suite]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+      - name: Verify all selected jobs passed
+        env:
+          SCOPE: ${{ needs.scope.result }}
+          FULL: ${{ needs.scope.outputs.full }}
+          SUITE: ${{ needs.suite.result }}
+        run: |
+          echo "Documentation and scope=$SCOPE, full suite selected=$FULL, suite=$SUITE"
+          test "$SCOPE" = success
+          case "$FULL/$SUITE" in
+            true/success|false/skipped) ;;
+            *) exit 1 ;;
+          esac
