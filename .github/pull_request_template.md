@@ -2,4 +2,4 @@
 
 List each added or revised requirement ID, the test case that exercises it,
 and the observed result. Include failure cases where applicable.
-[Requirements and test policy](https://github.com/Aravindargutus/butterfly/blob/main/docs/requirements/README.md)
+[Requirements and test policy](../blob/main/docs/requirements/README.md)

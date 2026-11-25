@@ -68,6 +68,9 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      - name: Test the PR requirements checker
+        run: python3 scripts/test_pr_requirements.py
+
       - name: Toolchain (pinned by rust-toolchain.toml, with rustfmt and clippy)
         run: rustup show
 

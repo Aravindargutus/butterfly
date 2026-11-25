@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 # SPDX-License-Identifier: MIT OR Apache-2.0
 """Exercise the PR policy against real temporary Git histories."""
 import subprocess
@@ -42,7 +43,7 @@ class PolicyTests(unittest.TestCase):
         return self.git("rev-parse", "HEAD")
 
     def verdict(self, base=None):
-        return subprocess.run([sys.executable, CHECK, base or self.base, "HEAD"], cwd=self.repo, capture_output=True, text=True)
+        return subprocess.run([sys.executable, CHECK, "--", base or self.base, "HEAD"], cwd=self.repo, capture_output=True, text=True)
 
     def test_requires_both_parts_on_docs_prs(self):
         self.write("README.md", "# Updated manual\n")
@@ -73,6 +74,46 @@ class PolicyTests(unittest.TestCase):
         self.write("docs/requirements/duplicate.toml", self.record("Another requirement."))
         self.commit()
         self.assertIn("duplicate requirement ID", self.verdict().stderr)
+
+    def test_duplicate_in_prospective_merge_tree(self):
+        self.git("checkout", "-qb", "other")
+        another = self.record("The manual shall include an index.").replace("DOC-001", "DOC-002")
+        self.write("docs/requirements/index.toml", another)
+        advanced_base = self.commit()
+        self.git("checkout", "-q", self.base)
+        self.write("docs/requirements/setup.toml", another)
+        self.write(SUITE, "test('index', checkIndex);")
+        self.commit()
+        self.assertIn("duplicate requirement ID", self.verdict(advanced_base).stderr)
+
+    def test_base_deletes_a_linked_suite(self):
+        path = "ui/linked.test.cjs"
+        self.write(path, "test('linked', checkLinked);")
+        self.base = self.commit()
+        self.git("checkout", "-qb", "other")
+        self.git("rm", path)
+        advanced_base = self.commit()
+        self.git("checkout", "-q", self.base)
+        self.write(REQ, self.record("The help shall list flags.", path))
+        self.commit()
+        self.assertIn("missing or unsupported", self.verdict(advanced_base).stderr)
+
+    def test_removal_only_and_whitespace(self):
+        self.write(SUITE, "test('help', () => {\n  checkFlags();\n  checkExample();\n});\n")
+        self.base = self.commit()
+        self.write(REQ, self.record("The help shall show only the flags."))
+        self.write(SUITE, "test('help', () => {\n    checkFlags();\n  checkExample();\n});\n")
+        self.commit()
+        self.assertIn("linked test suite", self.verdict().stderr)
+        self.write(SUITE, "test('help', () => {\n  checkFlags();\n});\n")
+        self.commit()
+        result = self.verdict()
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_option_like_ref_is_rejected(self):
+        result = self.verdict("--help")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertNotIn("usage: git merge-base", result.stdout)
 
     def test_base_only_changes_do_not_count_toward_the_pr(self):
         self.git("checkout", "-qb", "other")
