@@ -19,8 +19,17 @@ fn count(cell: &str) -> Result<OzoneCount> {
     let mut fields = rest.split_whitespace();
     let covered = covered.trim().parse::<u64>()?;
     let total = fields.next().context("missing total")?.parse::<u64>()?;
-    let percent = fields.next().and_then(|p| p.strip_suffix('%')).context("missing percentage")?.parse::<f64>()?;
+    let displayed = fields.next().and_then(|p| p.strip_suffix('%')).context("missing percentage")?;
+    let (whole, fraction) = displayed.split_once('.').unwrap_or((displayed, ""));
+    ensure!(!whole.is_empty() && whole.bytes().chain(fraction.bytes()).all(|b| b.is_ascii_digit()), "invalid percentage in {cell:?}");
+    let percent = displayed.parse::<f64>()?;
     ensure!(covered <= total && (0.0..=100.0).contains(&percent) && fields.next().is_none(), "invalid coverage cell {cell:?}");
+    if total > 0 {
+        // Allow rounding to the number of places Ozone actually printed.
+        let unit = 10_f64.powi(-(fraction.len().min(15) as i32));
+        let expected = 100.0 * covered as f64 / total as f64;
+        ensure!((expected - percent).abs() <= unit / 2.0 + 100.0 * f64::EPSILON, "percentage disagrees with counts in {cell:?}");
+    }
     Ok(OzoneCount { covered, total })
 }
 

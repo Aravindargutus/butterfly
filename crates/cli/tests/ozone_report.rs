@@ -3,7 +3,7 @@
 use serde_json::{json, Value};
 use std::{fs, process::Command};
 
-const REPORT: &str = include_str!("fixtures/ozone-report.txt");
+const REPORT: &str = include_str!("../../../examples/ozone/report.txt");
 
 fn butterfly() -> Command {
     Command::new(env!("CARGO_BIN_EXE_butterfly"))
@@ -63,6 +63,7 @@ fn invalid_or_incomplete_reports_fail_without_emitting_coverage() {
     fs::write(&coverage, r#"{"type":"llvm.coverage.json.export","data":[{"files":[],"functions":[]}]}"#).unwrap();
     for text in [
         REPORT.replace("2 / 3", "9 / 3"),
+        REPORT.replace("66.7%", "100.0%"),
         REPORT.replace("filter.c           |                 |", ""),
         REPORT.replace("  Total ", "  Missing "),
         "Address,Encoding,Opcode\n1000,abcd,mov".into(),

@@ -1094,3 +1094,15 @@ example = "c"
 proof = "scripts/ci-local.sh"
 caveat = "CI runs the documented commands from ingest to report on the example as a smoke test: each must exit cleanly and the report must be non-empty, and nothing more is asserted of them."
 tracking = [199]
+
+[[row]]
+id = "feature.ozone-report"
+area = "feature"
+group = "Command line"
+name = "Import SEGGER Ozone Code Profile Reports from J-Trace workflows"
+state = "caveats"
+example = "ozone"
+evidence = "examples/ozone/report.txt:6"
+pattern = 'Code Coverage Summary'
+proof = "crates/ingest/tests/ozone_example.rs::worked_report_preserves_function_counts_and_scope"
+caveat = "The English text report supplies aggregate source-line and instruction counts for its selected scope. CI replays a synthetic report. CSV, raw probe captures, instruction addresses, branch outcomes and MC/DC are outside this importer."

@@ -1,11 +1,11 @@
 [BF-OZONE-001]
 statement = "Given an English Ozone Code Profile Report, the standalone importer shall emit JSON preserving the module and function names, each covered and total source-line and instruction count, and the report’s own scope totals."
-tests = ["crates/cli/tests/ozone_report.rs"]
+tests = ["crates/cli/tests/ozone_report.rs", "crates/ingest/tests/ozone_example.rs"]
 
 [BF-OZONE-002]
 statement = "When a report is supplied to ingest, Butterfly shall store its aggregates in ozoneReport, record the original file’s SHA-256 and size in provenance, and display its scope totals in the summary. Attaching it shall leave compiler coverage and measured execution evidence unchanged."
 tests = ["crates/cli/tests/ozone_report.rs"]
 
 [BF-OZONE-003]
-statement = "Both the standalone reader and ingest shall fail on an unsupported report, a function without a module, an impossible covered count, or a missing coverage total, without producing coverage output."
+statement = "Both the standalone reader and ingest shall fail on an unsupported report, a function without a module, an impossible covered count, a percentage inconsistent with the reported precision, or a missing coverage total, without producing coverage output."
 tests = ["crates/cli/tests/ozone_report.rs"]

@@ -119,6 +119,7 @@ echo "== job: test =="
 # support/matrix.toml's checker holds the two lists equal. Building only
 # examples/c here once left serve_requirements, the duplicate-static, the
 # duplicate-C++ and the tags suites silently unexercised.
+step "./examples/ozone/build.sh"            ./examples/ozone/build.sh
 step "./examples/c/build.sh"                ./examples/c/build.sh
 step "./examples/c-lib/build.sh"            ./examples/c-lib/build.sh
 # the library as delivered, and the objects it was built from (#169)

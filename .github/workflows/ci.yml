@@ -244,6 +244,9 @@ jobs:
       - name: Build the GCC example (the gcov front end needs it)
         run: ./examples/c-gcc/build.sh
 
+      - name: Build the Ozone text-report example
+        run: ./examples/ozone/build.sh
+
       # The viewer's own tests: they run the real app.js in a VM, so they
       # cover what Rust cannot -- a resolution key written by one pane and
       # read by another, for instance. Ubuntu runners ship node; this runs

@@ -8,22 +8,15 @@ Copyright (c) 2026 Dhakshnamoorthy Durgaraj
 Status: normative for this repository. Written for #120, part of the DO-330
 work (#112).
 
-## Why this file and not `CONTRIBUTING.md`
+## Scope
 
-#120 offers a choice of `CONTRIBUTING.md` or this path. There is no
-`CONTRIBUTING.md` in the tree and nothing else that would go in one has been
-written down, so creating the file to hold this one section would put a
-contributor-facing document in the repository that answers a single question
-and stays silent on every other one a contributor asks — how to run the tests,
-what a branch is named, what a review expects. That is worse than not having
-it.
+The [contributor guide](../../CONTRIBUTING.md) describes feature development and review. This document governs tool, schema and release versioning.
 
 These rules also exist for a specific reason: DO-330 §7.1.a and §7.2.7.d
 require configuration items to be identified unambiguously, and the
 DO-330 assessment (`DO-330-assessment.md`, findings 4 and T-8 objectives 1–2)
 records their absence as the gap this closes. They belong beside the
-assessment that demanded them. If a `CONTRIBUTING.md` is written later it
-should link here rather than restate this.
+assessment that demanded them.
 
 ## What is versioned
 
