@@ -18,7 +18,11 @@ fn standalone_and_ingest_preserve_the_scoped_report() {
     assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
     let profile: Value = serde_json::from_slice(&output.stdout).unwrap();
     let modules = &profile["modules"];
+    assert_eq!(modules.as_array().unwrap().len(), 2);
     assert_eq!(modules[0]["name"], "filter.c");
+    assert_eq!(modules[1]["name"], "gate.cpp");
+    assert_eq!(modules[1]["functions"][0]["name"], "update");
+    assert_eq!(modules[0]["functions"][0]["coverage"], json!({"sourceLines":{"covered":2,"total":3},"instructions":{"covered":7,"total":10}}));
     assert_eq!(modules[0]["functions"][0]["name"], "update");
     assert_eq!(modules[1]["functions"][0]["coverage"]["instructions"], json!({"covered":0,"total":4}));
     assert_eq!(modules[1]["functions"][1]["name"], "operator|");
@@ -35,7 +39,16 @@ fn standalone_and_ingest_preserve_the_scoped_report() {
     assert!(ev["measured"].is_null());
     assert_eq!(ev["summary"]["linesCovered"], 0);
     let input = ev["provenance"]["inputs"].as_array().unwrap().iter().find(|p| p["role"] == "ozone-code-profile").unwrap();
-    assert_eq!(input["sha256"].as_str().unwrap().len(), 64);
+    // Digest of the fixture's original BOM-prefixed CRLF bytes.
+    assert_eq!(input["sha256"], "4742c901f5abc71daea7f43cc26ebea1c075c60c3b0219bcd84821d55c6a40a1");
+    assert_eq!(input["bytes"], fs::metadata(&report).unwrap().len());
+    let baseline = dir.join("without-ozone.json");
+    let result = butterfly().args(["ingest", "--coverage"]).arg(&coverage).arg("-o").arg(&baseline).output().unwrap();
+    assert!(result.status.success(), "{}", String::from_utf8_lossy(&result.stderr));
+    let without: Value = serde_json::from_slice(&fs::read(baseline).unwrap()).unwrap();
+    assert!(without.get("ozoneReport").is_none());
+    assert_eq!(ev["summary"], without["summary"]);
+    assert_eq!(ev["measured"], without["measured"]);
     let summary = butterfly().arg("summary").arg(&evidence).output().unwrap();
     assert!(summary.status.success());
     assert!(String::from_utf8_lossy(&summary.stderr).contains("Ozone export: 3/5 source lines, 10/17 instructions"));
@@ -43,7 +56,11 @@ fn standalone_and_ingest_preserve_the_scoped_report() {
 
 #[test]
 fn invalid_or_incomplete_reports_fail_without_emitting_coverage() {
-    let report = butterfly_testsupport::scratch_dir("ozone-invalid").join("bad.txt");
+    let dir = butterfly_testsupport::scratch_dir("ozone-invalid");
+    let report = dir.join("bad.txt");
+    let output = dir.join("evidence.json");
+    let coverage = dir.join("coverage.json");
+    fs::write(&coverage, r#"{"type":"llvm.coverage.json.export","data":[{"files":[],"functions":[]}]}"#).unwrap();
     for text in [
         REPORT.replace("2 / 3", "9 / 3"),
         REPORT.replace("filter.c           |                 |", ""),
@@ -54,5 +71,9 @@ fn invalid_or_incomplete_reports_fail_without_emitting_coverage() {
         let result = butterfly().arg("ozone").arg(&report).output().unwrap();
         assert!(!result.status.success());
         assert!(result.stdout.is_empty());
+        let ingest = butterfly().args(["ingest", "--coverage"]).arg(&coverage).arg("--ozone-report").arg(&report).arg("-o").arg(&output).output().unwrap();
+        assert!(!ingest.status.success());
+        assert!(String::from_utf8_lossy(&ingest.stderr).contains("Ozone Code Profile Report"));
+        assert!(!output.exists());
     }
 }
