@@ -7,5 +7,5 @@ statement = "When a report is supplied to ingest, Butterfly shall store its aggr
 tests = ["crates/cli/tests/ozone_report.rs"]
 
 [BF-OZONE-003]
-statement = "Both the standalone reader and ingest shall fail on an unsupported report, a function without a module, an impossible covered count, a percentage inconsistent with the reported precision, or a missing coverage total, without producing coverage output."
+statement = "Both the standalone reader and ingest shall fail on an unsupported report, a function without a module, an impossible covered count, a nonzero percentage for an empty total, a percentage inconsistent with the reported precision, or a missing coverage total, without producing coverage output."
 tests = ["crates/cli/tests/ozone_report.rs"]

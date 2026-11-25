@@ -16,7 +16,7 @@ These rules also exist for a specific reason: DO-330 §7.1.a and §7.2.7.d
 require configuration items to be identified unambiguously, and the
 DO-330 assessment (`DO-330-assessment.md`, findings 4 and T-8 objectives 1–2)
 records their absence as the gap this closes. They belong beside the
-assessment that demanded them.
+assessment that demanded them. When #120 established these rules, versioning was the only contributor process documented, so the project kept the normative policy here. The contributor guide now links here as other workflows have been documented.
 
 ## What is versioned
 

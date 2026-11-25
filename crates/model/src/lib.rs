@@ -70,32 +70,32 @@ pub struct Evidence {
     pub changes: Option<Changes>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct OzoneReport {
     pub modules: Vec<OzoneModule>,
     pub total: OzoneCoverage,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct OzoneModule {
     pub name: String,
     pub functions: Vec<OzoneFunction>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct OzoneFunction {
     pub name: String,
     pub coverage: OzoneCoverage,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OzoneCoverage {
     pub source_lines: OzoneCount,
     pub instructions: OzoneCount,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct OzoneCount {
     pub covered: u64,
     pub total: u64,

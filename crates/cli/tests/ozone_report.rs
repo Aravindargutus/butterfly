@@ -64,6 +64,8 @@ fn invalid_or_incomplete_reports_fail_without_emitting_coverage() {
     for text in [
         REPORT.replace("2 / 3", "9 / 3"),
         REPORT.replace("66.7%", "100.0%"),
+        REPORT.replace("2 / 3  66.7%", "0 / 0  50.0%"),
+        REPORT.replace("2 / 3  66.7%", "10 / 17  58.82352941176470588234%"),
         REPORT.replace("filter.c           |                 |", ""),
         REPORT.replace("  Total ", "  Missing "),
         "Address,Encoding,Opcode\n1000,abcd,mov".into(),
@@ -76,5 +78,47 @@ fn invalid_or_incomplete_reports_fail_without_emitting_coverage() {
         assert!(!ingest.status.success());
         assert!(String::from_utf8_lossy(&ingest.stderr).contains("Ozone Code Profile Report"));
         assert!(!output.exists());
+    }
+}
+
+#[test]
+fn preserves_counts_at_the_displayed_precision() {
+    let path = butterfly_testsupport::scratch_dir("ozone-decimals").join("capture.txt");
+    for (cell, covered, total) in [
+        ("0 / 0 0.0%", 0, 0),
+        ("10 / 17 58.824%", 10, 17),
+        ("10 / 17 58.82352941176470588235%", 10, 17),
+        ("18446744073709551614 / 18446744073709551615 100.0%", u64::MAX - 1, u64::MAX),
+    ] {
+        fs::write(&path, REPORT.replace("2 / 3  66.7%", cell)).unwrap();
+        let output = butterfly().arg("ozone").arg(&path).output().unwrap();
+        assert!(output.status.success(), "{cell}: {}", String::from_utf8_lossy(&output.stderr));
+        let profile: Value = serde_json::from_slice(&output.stdout).unwrap();
+        assert_eq!(profile["modules"][0]["functions"][0]["coverage"]["sourceLines"], json!({"covered":covered,"total":total}));
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn ozone_reports_are_explicit_inputs_even_when_linked() {
+    let dir = butterfly_testsupport::scratch_dir("ozone-explicit");
+    let build = dir.join("build");
+    fs::create_dir(&build).unwrap();
+    let report = dir.join("original.txt");
+    fs::write(&report, REPORT).unwrap();
+    let coverage = build.join("coverage.json");
+    fs::write(&coverage, r#"{"type":"llvm.coverage.json.export","data":[{"files":[],"functions":[]}]}"#).unwrap();
+    let link = build.join("ozone-report.txt");
+    std::os::unix::fs::symlink(&report, &link).unwrap();
+    let hardlink = build.join("ozone-profile.txt");
+    fs::hard_link(&report, &hardlink).unwrap();
+    let opts = butterfly_ingest::discover(&build).unwrap();
+    assert!(opts.ozone_report.is_none());
+    let out = dir.join("evidence.json");
+    for named in [link, hardlink] {
+        let cmd = butterfly().arg("ozone").arg(&named).output().unwrap();
+        assert!(cmd.status.success(), "{}", String::from_utf8_lossy(&cmd.stderr));
+        let cmd = butterfly().arg("ingest").arg(&build).arg("--ozone-report").arg(named).arg("-o").arg(&out).output().unwrap();
+        assert!(cmd.status.success(), "{}", String::from_utf8_lossy(&cmd.stderr));
     }
 }

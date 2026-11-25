@@ -9,6 +9,7 @@ use butterfly_model::{limits, InputArtifact, OzoneCount, OzoneCoverage, OzoneFun
 use std::path::Path;
 
 pub fn read(path: &Path, limits: &limits::Limits) -> Result<(OzoneReport, InputArtifact)> {
+    // Both CLI entry points require an operator-supplied path. Ozone reports are never auto-discovered.
     let text = super::read_input(path, limits::Kind::Auxiliary, limits, None)?;
     let report = parse(&text).with_context(|| format!("reading Ozone Code Profile Report {}", path.display()))?;
     Ok((report, super::artifact("ozone-code-profile", path, text.as_bytes())))
@@ -22,13 +23,21 @@ fn count(cell: &str) -> Result<OzoneCount> {
     let displayed = fields.next().and_then(|p| p.strip_suffix('%')).context("missing percentage")?;
     let (whole, fraction) = displayed.split_once('.').unwrap_or((displayed, ""));
     ensure!(!whole.is_empty() && whole.bytes().chain(fraction.bytes()).all(|b| b.is_ascii_digit()), "invalid percentage in {cell:?}");
-    let percent = displayed.parse::<f64>()?;
-    ensure!(covered <= total && (0.0..=100.0).contains(&percent) && fields.next().is_none(), "invalid coverage cell {cell:?}");
-    if total > 0 {
-        // Allow rounding to the number of places Ozone actually printed.
-        let unit = 10_f64.powi(-(fraction.len().min(15) as i32));
-        let expected = 100.0 * covered as f64 / total as f64;
-        ensure!((expected - percent).abs() <= unit / 2.0 + 100.0 * f64::EPSILON, "percentage disagrees with counts in {cell:?}");
+    let whole: u8 = whole.parse()?;
+    ensure!(covered <= total && fields.next().is_none() && whole <= 100 && (whole != 100 || fraction.bytes().all(|b| b == b'0')), "invalid coverage cell {cell:?}");
+    if total == 0 {
+        ensure!(whole == 0 && fraction.bytes().all(|b| b == b'0'), "nonzero percentage for an empty total in {cell:?}");
+    } else {
+        // Compare the exact ratio to the printed decimal, one digit at a time.
+        // A difference greater than one unit cannot be recovered by later digits.
+        // This bounds the remainder even for u64::MAX and arbitrarily long fractions.
+        let denominator = i128::from(total);
+        let mut remainder = 100 * i128::from(covered) - i128::from(whole) * denominator;
+        for digit in fraction.bytes() {
+            ensure!(remainder.abs() <= denominator, "percentage disagrees with counts in {cell:?}");
+            remainder = 10 * remainder - i128::from(digit - b'0') * denominator;
+        }
+        ensure!(2 * remainder.abs() <= denominator, "percentage disagrees with counts in {cell:?}");
     }
     Ok(OzoneCount { covered, total })
 }
