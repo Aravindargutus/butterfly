@@ -2,4 +2,4 @@
 
 List each added or revised requirement ID, the test case that exercises it,
 and the observed result. Include failure cases where applicable.
-[Requirements and test policy](../blob/main/docs/requirements/README.md)
+See `docs/requirements/README.md` in the repository for the policy.
