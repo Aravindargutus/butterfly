@@ -75,6 +75,7 @@ pub fn evidence(files: Vec<SourceFile>, functions: Vec<Function>) -> Evidence {
         globals: vec![],
         image: None,
         measured: None,
+        ozone_report: None,
         baseline: None,
         changes: None,
     }

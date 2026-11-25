@@ -127,6 +127,7 @@ cargo uninstall butterfly
 |---|---|
 | `ingest <dir>` | read a build directory (or explicit `--coverage`/`--object`) and write `evidence.json`. **`-o` defaults to `./evidence.json`, not into the build directory.** |
 | `serve <evidence…>` | the browser UI on `127.0.0.1:8787`. Several files = variants of the same sources, comparable in the UI. |
+| `ozone <report.txt>` | read a SEGGER Ozone Code Profile Report and print the covered and total counts by module and function as JSON. |
 | `summary <evidence>` | one-screen textual roll-up, for CI logs |
 | `report <evidence>` | a self-contained HTML Software Verification Results report |
 | `baseline <evidence>` | freeze the analysis baseline (§4.4.2.c); an ingest compares against it and flags stale analyses when given it with `--baseline`, or when it finds a `butterfly-baseline.json` in the build directory it reads (#238, fixed by #241). With neither, nothing is compared |
@@ -143,6 +144,28 @@ non-instrumented binary, `build-info.txt`, `*.su` stack files, a `*trace*.log`,
 `butterfly.toml` and `butterfly-baseline.json`. Instrumented binaries (those
 carrying `__llvm_covmap`) are skipped, so pointing it at a directory holding
 both builds does the right thing.
+
+### SEGGER Ozone / J-Trace coverage
+
+After capturing a run in Ozone, open **Code Profile Export**, select the functions
+to include, and choose **Report** for the output format. Butterfly reads the
+English text report's **Code Coverage Summary** table. To inspect the capture
+on its own or attach it to an existing compiler-coverage workflow:
+
+```sh
+butterfly ozone ozone-report.txt
+butterfly ingest ./build --ozone-report ozone-report.txt -o evidence.json
+butterfly summary evidence.json
+```
+
+The JSON preserves module names, function names, and Ozone's covered/total
+source-line and instruction counts. The total describes the selected export
+scope. Attached reports appear under `ozoneReport`, with the input hash in
+provenance. Ozone applies its own coverage rules to conditional instructions.
+These aggregates carry no per-address execution counts, branch outcomes or
+MC/DC vectors. The first importer supports the text report. Ozone CSV exports
+and raw J-Trace captures would need separate readers.
+[SEGGER Ozone User Guide, Code Profile Export Dialog](https://www.segger.com/downloads/jlink/UM08025_Ozone.pdf)
 
 ### Go to definition (optional)
 

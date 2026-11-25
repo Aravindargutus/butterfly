@@ -1,0 +1,23 @@
+Ozone Code Profile Report
+
+Project:      synthetic-example
+Application:  fixture.elf
+
+Code Coverage Summary
+
+Module/Function    | Source Lines    | Instructions
+-------------------+-----------------+-----------------
+filter.c           |                 |
+  update           | 2 / 3  66.7%    | 7 / 10  70.0%
+gate.cpp           |                 |
+  update           | 0 / 1   0.0%    | 0 / 4    0.0%
+  operator|        | 1 / 1 100.0%    | 3 / 3  100.0%
+-------------------+-----------------+-----------------
+  Total            | 3 / 5  60.0%    | 10 / 17 58.8%
+
+Code Profile Summary
+
+Module/Function    | Run Count       | Load
+-------------------+-----------------+-----------------
+filter.c           |                 |
+  update           | 12              | 80

@@ -56,6 +56,9 @@ pub struct Evidence {
     pub image: Option<Image>,
     #[serde(default)]
     pub measured: Option<Measured>,
+    /// Aggregate coverage as reported by Ozone for the selected export scope.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ozone_report: Option<OzoneReport>,
     /// Result of comparing this evidence with a frozen analysis baseline
     /// (DO-178C 4.4.2.c: new compiler / options / constructs invalidate earlier
     /// coverage and traceability analyses).
@@ -65,6 +68,37 @@ pub struct Evidence {
     /// git history (`butterfly changes`). Absent until that command has run.
     #[serde(default)]
     pub changes: Option<Changes>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OzoneReport {
+    pub modules: Vec<OzoneModule>,
+    pub total: OzoneCoverage,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OzoneModule {
+    pub name: String,
+    pub functions: Vec<OzoneFunction>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OzoneFunction {
+    pub name: String,
+    pub coverage: OzoneCoverage,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OzoneCoverage {
+    pub source_lines: OzoneCount,
+    pub instructions: OzoneCount,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OzoneCount {
+    pub covered: u64,
+    pub total: u64,
 }
 
 pub const CHANGES_SCHEMA: &str = "butterfly-changes/1";
@@ -2334,6 +2368,7 @@ mod tests {
             globals: vec![],
             image: None,
             measured: None,
+            ozone_report: None,
             baseline: None,
             changes: None,
         }
