@@ -9,7 +9,8 @@ use butterfly_model::{limits, InputArtifact, OzoneCount, OzoneCoverage, OzoneFun
 use std::path::Path;
 
 pub fn read(path: &Path, limits: &limits::Limits) -> Result<(OzoneReport, InputArtifact)> {
-    // Both CLI entry points require an operator-supplied path. Ozone reports are never auto-discovered.
+    // None identifies an operator-named input: read_input permits links for explicitly supplied paths.
+    // If reports ever participate in discovery, pass their discovery origin so open_discovered checks those links.
     let text = super::read_input(path, limits::Kind::Auxiliary, limits, None)?;
     let report = parse(&text).with_context(|| format!("reading Ozone Code Profile Report {}", path.display()))?;
     Ok((report, super::artifact("ozone-code-profile", path, text.as_bytes())))
