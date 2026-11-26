@@ -23,6 +23,12 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
+      - name: Check PR requirements and linked tests
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          python3 scripts/check_pr_requirements.py "$BASE" "$HEAD_SHA"
       - name: Select suite from the complete PR diff
         id: paths
         env:
@@ -38,6 +44,10 @@ jobs:
               # Example READMEs contain numbers asserted by Rust tests.
               if path.startswith(b"examples/"):
                   return False
+              # These test suites run in this job, even for a docs-only PR.
+              if path in (b"ui/matrix_docs.test.cjs", b"ui/showcase_toml.test.cjs",
+                          b"ui/showcase_build.test.cjs", b"ui/showcase_capture.test.cjs"):
+                  return True
               return (path.endswith(b".md") or path.startswith((b"docs/", b".github/ISSUE_TEMPLATE/"))
                       or path in (b"NOTICE", b"LICENSE-MIT", b"LICENSE-APACHE"))
           full = any(not docs_only(p) for p in diff.split(b"\0") if p)

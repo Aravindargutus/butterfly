@@ -98,6 +98,7 @@ echo "note: CI also runs ubuntu-24.04; this covers one host only."
 echo
 
 echo "== job: rustfmt + clippy =="
+step "PR requirements checker tests" python3 scripts/test_pr_requirements.py
 step "cargo fmt --all --check"            cargo fmt --all --check
 # The viewer's own tests. They run the real app.js in a VM, so they catch
 # things Rust cannot -- a resolution key written by one pane and read by
