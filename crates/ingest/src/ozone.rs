@@ -16,13 +16,24 @@ pub fn read(path: &Path, limits: &limits::Limits) -> Result<(OzoneReport, InputA
     Ok((report, super::artifact("ozone-code-profile", path, text.as_bytes())))
 }
 
+/// A count as Ozone prints it: decimal digits only. `u64::from_str` would
+/// also take a leading `+`.
+fn digits(s: &str, what: &str, cell: &str) -> Result<u64> {
+    ensure!(!s.is_empty() && s.bytes().all(|b| b.is_ascii_digit()), "invalid {what} in {cell:?}");
+    Ok(s.parse()?)
+}
+
 fn count(cell: &str) -> Result<OzoneCount> {
     let (covered, rest) = cell.split_once('/').context("expected covered / total and percentage")?;
     let mut fields = rest.split_whitespace();
-    let covered = covered.trim().parse::<u64>()?;
-    let total = fields.next().context("missing total")?.parse::<u64>()?;
+    let covered = digits(covered.trim(), "covered count", cell)?;
+    let total = digits(fields.next().context("missing total")?, "total", cell)?;
     let displayed = fields.next().and_then(|p| p.strip_suffix('%')).context("missing percentage")?;
-    let (whole, fraction) = displayed.split_once('.').unwrap_or((displayed, ""));
+    let (whole, fraction) = match displayed.split_once('.') {
+        Some((_, "")) => bail!("invalid percentage in {cell:?}"),
+        Some(parts) => parts,
+        None => (displayed, ""),
+    };
     ensure!(!whole.is_empty() && whole.bytes().chain(fraction.bytes()).all(|b| b.is_ascii_digit()), "invalid percentage in {cell:?}");
     let whole: u8 = whole.parse()?;
     ensure!(covered <= total && fields.next().is_none() && whole <= 100 && (whole != 100 || fraction.bytes().all(|b| b == b'0')), "invalid coverage cell {cell:?}");
@@ -38,7 +49,11 @@ fn count(cell: &str) -> Result<OzoneCount> {
             ensure!(remainder.abs() <= denominator, "percentage disagrees with counts in {cell:?}");
             remainder = 10 * remainder - i128::from(digit - b'0') * denominator;
         }
-        ensure!(2 * remainder.abs() <= denominator, "percentage disagrees with counts in {cell:?}");
+        // Rounded to nearest, or truncated: a tool may show 9999/10000 as
+        // 99.9% so partial coverage never reads 100.0%. Which one Ozone does
+        // has not been checked against a capture, so both are accepted; both
+        // still pin the printed value to within one unit of the counts.
+        ensure!(2 * remainder.abs() <= denominator || (0..denominator).contains(&remainder), "percentage disagrees with counts in {cell:?}");
     }
     Ok(OzoneCount { covered, total })
 }
@@ -84,5 +99,8 @@ fn parse(text: &str) -> Result<OzoneReport> {
         after_separator = false;
     }
     let Some(total) = total else { bail!("missing coverage Total row") };
+    // The header underline is a separator too, so a Total right under the
+    // header parsed as a report over nothing.
+    ensure!(modules.iter().any(|m| !m.functions.is_empty()), "coverage Total row with no function rows above it");
     Ok(OzoneReport { modules, total })
 }

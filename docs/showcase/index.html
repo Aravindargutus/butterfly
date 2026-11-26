@@ -1468,7 +1468,7 @@ butterfly serve target/showcase/quickstart/evidence.json
       <td><code>c</code></td>
       <td><code>crates/ingest/tests/synthetic.rs::baseline_compare_detects_flags_and_source_changes</code></td></tr><tr><th scope="row">Import SEGGER Ozone Code Profile Reports from J-Trace workflows<br><span class="vid">feature.ozone-report</span></th>
       <td><span class="chip partial">Handled, with caveats</span></td>
-      <td>The English text report supplies aggregate source-line and instruction counts for its selected scope. CI replays a synthetic report. CSV, raw probe captures, instruction addresses, branch outcomes and MC/DC are outside this importer.</td>
+      <td>The English text report supplies aggregate source-line and instruction counts for its selected scope. CI replays a synthetic report. CSV, raw probe captures, instruction addresses, branch outcomes and MC/DC are outside this importer. <code>ozone</code>, <code>ingest</code> and <code>summary</code> show the report; <code>report</code> and <code>serve</code> do not render it yet.</td>
       <td><code>ozone</code><br><span class="muted">examples/ozone/report.txt:6</span></td>
       <td><code>crates/ingest/tests/ozone_example.rs::worked_report_preserves_function_counts_and_scope</code></td></tr></tbody></table></div><h4 class="mgroup">Build systems</h4><div class="scroll"><table class="matrix"><thead><tr><th>what</th><th>state</th><th>caveat, or the reason it is not supported</th><th>example</th><th>proof</th></tr></thead><tbody><tr><th scope="row">CMake<br><span class="vid">feature.build-systems.cmake</span></th>
       <td><span class="chip partial">Handled, with caveats</span></td>

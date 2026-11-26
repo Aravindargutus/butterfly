@@ -1669,6 +1669,29 @@ impl Evidence {
         for (i, f) in self.functions.iter().enumerate() {
             pair!(format!("functions[{i}] `{}` lines", f.name), f.lines_covered, f.lines_total);
         }
+        // An attached Ozone report is input like the rest: `summary` prints
+        // its counts, so it is held to what the importer would have accepted
+        // -- named rows, no count above its total, and a total over at least
+        // one function row.
+        if let Some(r) = &self.ozone_report {
+            pair!("ozoneReport.total.sourceLines", r.total.source_lines.covered, r.total.source_lines.total);
+            pair!("ozoneReport.total.instructions", r.total.instructions.covered, r.total.instructions.total);
+            if r.modules.iter().all(|m| m.functions.is_empty()) {
+                return Err("ozoneReport: a coverage total over no function rows".into());
+            }
+            for (m, module) in r.modules.iter().enumerate() {
+                if module.name.trim().is_empty() {
+                    return Err(format!("ozoneReport.modules[{m}]: empty module name"));
+                }
+                for (k, f) in module.functions.iter().enumerate() {
+                    if f.name.trim().is_empty() {
+                        return Err(format!("ozoneReport.modules[{m}].functions[{k}]: empty function name"));
+                    }
+                    pair!(format!("ozoneReport.modules[{m}].functions[{k}] `{}` sourceLines", f.name), f.coverage.source_lines.covered, f.coverage.source_lines.total);
+                    pair!(format!("ozoneReport.modules[{m}].functions[{k}] `{}` instructions", f.name), f.coverage.instructions.covered, f.coverage.instructions.total);
+                }
+            }
+        }
         for (i, f) in self.functions.iter().enumerate() {
             let at = |w: &str| format!("functions[{i}] `{}` {w}", f.name);
             chk!(at("fileId"), f.file_id, nf);

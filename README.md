@@ -165,7 +165,9 @@ source-line and instruction counts. The total describes the selected export
 scope. Attached reports appear under `ozoneReport`, with the input hash in
 provenance. Ozone applies its own coverage rules to conditional instructions.
 These aggregates carry no per-address execution counts, branch outcomes or
-MC/DC vectors. The first importer supports the text report. Ozone CSV exports
+MC/DC vectors. `butterfly ozone`, `ingest` and `summary` show the report;
+`butterfly report` and `butterfly serve` do not render it yet. The first
+importer supports the text report. Ozone CSV exports
 and raw J-Trace captures would need separate readers.
 [SEGGER Ozone User Guide, Code Profile Export Dialog](https://www.segger.com/downloads/jlink/UM08025_Ozone.pdf)
 
@@ -482,7 +484,7 @@ by any hosted run.
 | Finding your way around: search, shortcuts, jumping between uncovered regions<br>`feature.navigation` | Handled, with caveats | Search is asserted on the example and the digit tab shortcuts on hand-written evidence; nothing asserts `j`/`k` or the `]`/`[` jump between uncovered regions. Tracked in #197, #157. | `c-per-test` | `ui/browser/checks/requirements.cjs::search-narrows-and-navigates` |
 | Measured object coverage from an execution trace (--trace): QEMU -d in_asm,exec,nochain<br>`feature.measured-coverage` | Handled, with caveats | Verified locally, not in hosted CI, and only on a host that has the toolchain: scripts/ci-local.sh builds this example and runs its suite where qemu-system-aarch64, the aarch64-unknown-none-softfloat target and a nightly with llvm-tools are all present, and prints a named SKIP where they are not -- so a green local run on a host without them has not exercised this row. Coverage is exact but execution counts are an upper bound: QEMU logs a block on entry, and an abandoned entry that cannot be proven impossible is still counted. One single-CPU trace from an emulator; multi-CPU logs are read per CPU and proven on hand-written logs only, as are the execlog and address-list formats. The viewer's Measured overlay is tested on hand-built evidence (ui/measured.test.cjs), not on this example. Tracked in #164. | `rust-qemu` | `crates/ingest/tests/e2e_rust_qemu.rs::a_qemu_trace_yields_measured_instruction_and_outcome_coverage` |
 | Quickstart: from a built example to evidence, a summary and a report<br>`feature.quickstart` | Handled, with caveats | CI runs the documented commands from ingest to report on the example as a smoke test: each must exit cleanly and the report must be non-empty, and nothing more is asserted of them. Tracked in #199. | `c` | `scripts/ci-local.sh` |
-| Import SEGGER Ozone Code Profile Reports from J-Trace workflows<br>`feature.ozone-report` | Handled, with caveats | The English text report supplies aggregate source-line and instruction counts for its selected scope. CI replays a synthetic report. CSV, raw probe captures, instruction addresses, branch outcomes and MC/DC are outside this importer. | `ozone` | `crates/ingest/tests/ozone_example.rs::worked_report_preserves_function_counts_and_scope` |
+| Import SEGGER Ozone Code Profile Reports from J-Trace workflows<br>`feature.ozone-report` | Handled, with caveats | The English text report supplies aggregate source-line and instruction counts for its selected scope. CI replays a synthetic report. CSV, raw probe captures, instruction addresses, branch outcomes and MC/DC are outside this importer. `ozone`, `ingest` and `summary` show the report; `report` and `serve` do not render it yet. | `ozone` | `crates/ingest/tests/ozone_example.rs::worked_report_preserves_function_counts_and_scope` |
 
 </details>
 

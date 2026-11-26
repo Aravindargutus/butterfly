@@ -859,6 +859,9 @@ fn main() -> Result<()> {
             for su in &opts.stack_usage {
                 eprintln!("stack    : {}", su.display());
             }
+            if let Some(o) = &opts.ozone_report {
+                eprintln!("ozone    : {}", o.display());
+            }
             let ev = butterfly_ingest::ingest(&opts)?;
             let json = serde_json::to_string(&ev)?;
             write_output(&out, json.as_bytes())?;
@@ -1696,17 +1699,6 @@ fn print_summary(ev: &butterfly_model::Evidence) {
 }
 
 fn print_summary_with(ev: &butterfly_model::Evidence, res: &butterfly_model::Resolutions) {
-    if let Some(report) = &ev.ozone_report {
-        let total = &report.total;
-        eprintln!(
-            "Ozone export: {}/{} source lines, {}/{} instructions covered across {} function rows",
-            total.source_lines.covered,
-            total.source_lines.total,
-            total.instructions.covered,
-            total.instructions.total,
-            report.modules.iter().map(|m| m.functions.len()).sum::<usize>()
-        );
-    }
     let s = &ev.summary;
     let pct = |a: usize, b: usize| if b == 0 { 0.0 } else { 100.0 * a as f64 / b as f64 };
     if s.functions_unrecorded > 0 {
@@ -1739,6 +1731,18 @@ fn print_summary_with(ev: &butterfly_model::Evidence, res: &butterfly_model::Res
         eprintln!("stack      worst case {w} B via {via} · {} symbol(s) unbounded", s.stack_unbounded);
     }
     eprintln!("data       {} globals referenced, {} function->global refs", s.globals, s.data_refs);
+    if let Some(report) = &ev.ozone_report {
+        // Ozone's own counts for the scope it exported, beside ours, not merged into them.
+        let total = &report.total;
+        eprintln!(
+            "ozone      {}/{} source lines, {}/{} instructions over {} function rows (Ozone's scope)",
+            total.source_lines.covered,
+            total.source_lines.total,
+            total.instructions.covered,
+            total.instructions.total,
+            report.modules.iter().map(|m| m.functions.len()).sum::<usize>()
+        );
+    }
     if !ev.tests.is_empty() {
         // Coverage nobody can name a test for is coverage a reviewer has to
         // take on trust; DO-178C 6.4.4 is about what the requirements-based
