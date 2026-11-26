@@ -27,6 +27,7 @@ const os = require('node:os');
 const path = require('node:path');
 const {render} = require('../scripts/showcase/build.cjs');
 const {CAPTURE_SCHEMA} = require('../scripts/showcase/spec.cjs');
+const {REPO, HISTORICAL_REPO} = require('../scripts/showcase/markup.cjs');
 
 /// A directory holding `img/` with one PNG per (name, bytes) pair.
 function imgDir(files) {
@@ -319,7 +320,7 @@ test('a placeholder the builder itself failed to fill never reaches the page', (
 
 /// A spec and capture with enough of V14 for the landing table to render, and
 /// `extra` sections beside it so the footer's "mixed commits" line has a count.
-function landing({partial = null, demoCommit = null, extra = 0, same = true} = {}) {
+function landing({partial = null, demoCommit = null, demoRepo = undefined, metaRepo = undefined, extra = 0, same = true} = {}) {
   const fn = (blocks, gaps) => ({linesCovered: 7, linesTotal: 9, blocks, instructions: 30, gaps, gapKinds: {predicatedDecision: gaps}});
   const s = spec();
   s.fixtures['c-variants'] = {dir: 'examples/c', ci: true, build: ['./examples/c/build.sh'], evidence: 'examples/c/build/evidence.json'};
@@ -331,6 +332,7 @@ function landing({partial = null, demoCommit = null, extra = 0, same = true} = {
   for (let i = 0; i < extra; i++) s.features.push(sect(`V${30 + i}`));
 
   const c = cap(CAPTURED);
+  if (metaRepo !== undefined) c.meta.repo = metaRepo;
   c.fixtures['c-variants'] = {ok: true};
   c.factSets = {fv: {
     variantNames: 'O0, O1, O2, Os', sourceCoverageIdentical: same,
@@ -339,6 +341,7 @@ function landing({partial = null, demoCommit = null, extra = 0, same = true} = {
   for (const f of s.features.filter(x => x.id !== 'V01')) {
     c.features[f.id] = {commands: [], shots: [], facts: {'c-variants': 'fv'}};
     if (demoCommit) c.features[f.id].commit = demoCommit;
+    if (demoRepo !== undefined) c.features[f.id].repo = demoRepo;
   }
   if (partial) c.meta.partial = partial;
   return build(s, c, imgDir(FILES));
@@ -363,11 +366,32 @@ test('the landing table says which run its numbers came from, after a partial ca
   assert.match(stale, /<code>cccccccccccc<\/code>/, 'the commit the numbers were captured at');
   assert.match(stale, /refreshed only V16/, 'and what the last run actually did');
 
+  // Legacy V14 record (commit without repo) under a post-move page (meta.repo = REPO):
+  // commit and repository must be resolved from the same record so the old commit
+  // links to HISTORICAL_REPO rather than the new repository (#8 review).
+  const postMoveLegacy = provenance(landing({partial: ['V16'], demoCommit: 'c'.repeat(40), metaRepo: REPO}));
+  assert.ok(postMoveLegacy.includes(`href="${HISTORICAL_REPO}/commit/${'c'.repeat(40)}"`),
+    `legacy V14 commit should link to HISTORICAL_REPO, got: ${postMoveLegacy}`);
+  assert.ok(!postMoveLegacy.includes(`href="${REPO}/commit/${'c'.repeat(40)}"`),
+    `legacy V14 commit must not pair with post-move meta.repo, got: ${postMoveLegacy}`);
+
+  // Post-move V14 record (explicit repo = REPO) links to REPO.
+  const postMoveNew = provenance(landing({partial: ['V16'], demoCommit: 'd'.repeat(40), demoRepo: REPO, metaRepo: REPO}));
+  assert.ok(postMoveNew.includes(`href="${REPO}/commit/${'d'.repeat(40)}"`),
+    `post-move V14 commit should link to REPO, got: ${postMoveNew}`);
+
   // Not refreshed but at this page's commit: no commit to name, same retreat.
   const sameCommit = provenance(landing({partial: ['V16']}));
   assert.doesNotMatch(sameCommit, /this page's capture run/);
   assert.doesNotMatch(sameCommit, /, at <a href=/, 'no commit is named when there is no difference');
   assert.match(sameCommit, /refreshed only V16/);
+});
+
+test('the qualification section states the public position without linking the internal assessment', () => {
+  const html = landing();
+  assert.match(html, /not qualified/);
+  assert.match(html, /maintained internally and is not published in this repository/);
+  assert.doesNotMatch(html, /href="[^"]*DO-330-assessment\.md"/);
 });
 
 test('the landing table\'s "coverage differs" warning names the section it sends you to', () => {

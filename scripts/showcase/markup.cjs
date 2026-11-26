@@ -12,12 +12,11 @@
 // commits in (#7).
 const REPO = 'https://github.com/Aravindargutus/butterfly';
 
-// Where it was before the move. Its history was not carried over, so three
+// Where it was before the move. Its history was not carried over, so two
 // things exist only there and are linked there: the issues the prose cites
-// by number (#151, #231, ...), the commits of captures made before the
-// move, and the DO-330 assessment, at the commit the README cites.
+// by number (#151, #231, ...), and the commits of captures made before the
+// move.
 const HISTORICAL_REPO = 'https://github.com/dhaksh64/butterfly';
-const ASSESSMENT_URL = `${HISTORICAL_REPO}/blob/8104609a78c0e629db0b338c36bdbd3b9f33b5c4/docs/qualification/DO-330-assessment.md`;
 
 /// The repository a captured commit is in: the one the capture recorded,
 /// and the old one for a capture that recorded none (it predates the move).
@@ -34,4 +33,4 @@ function prose(text) {
 
 const issue = n => `<a href="${HISTORICAL_REPO}/issues/${n}">#${n}</a>`;
 
-module.exports = {REPO, HISTORICAL_REPO, ASSESSMENT_URL, commitUrl, esc, prose, issue};
+module.exports = {REPO, HISTORICAL_REPO, commitUrl, esc, prose, issue};
