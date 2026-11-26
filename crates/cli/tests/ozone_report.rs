@@ -13,7 +13,10 @@ fn butterfly() -> Command {
 fn standalone_and_ingest_preserve_the_scoped_report() {
     let dir = butterfly_testsupport::scratch_dir("ozone-evidence");
     let report = dir.join("report.txt");
-    fs::write(&report, format!("\u{feff}{}", REPORT.replace('\n', "\r\n"))).unwrap();
+    // A BOM and CRLF line endings, built from LF: on a checkout that already
+    // has CRLF, include_str! keeps it, and replacing '\n' alone would give
+    // "\r\r\n" and a different digest from the one asserted below.
+    fs::write(&report, format!("\u{feff}{}", REPORT.replace("\r\n", "\n").replace('\n', "\r\n"))).unwrap();
     let output = butterfly().arg("ozone").arg(&report).output().unwrap();
     assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
     let profile: Value = serde_json::from_slice(&output.stdout).unwrap();
