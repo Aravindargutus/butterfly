@@ -8,7 +8,19 @@
 
 'use strict';
 
-const REPO = 'https://github.com/dhaksh64/butterfly';
+// Where the project is now: what a capture made from here on names its
+// commits in (#7).
+const REPO = 'https://github.com/Aravindargutus/butterfly';
+
+// Where it was before the move. Its history was not carried over, so two
+// things exist only there and are linked there: the issues the prose cites
+// by number (#151, #231, ...), and the commits of captures made before the
+// move.
+const HISTORICAL_REPO = 'https://github.com/dhaksh64/butterfly';
+
+/// The repository a captured commit is in: the one the capture recorded,
+/// and the old one for a capture that recorded none (it predates the move).
+const commitUrl = (commit, repo) => `${repo || HISTORICAL_REPO}/commit/${commit}`;
 
 const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
@@ -16,9 +28,9 @@ const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(
 function prose(text) {
   return esc(text)
     .replace(/`([^`]+)`/g, '<code>$1</code>')
-    .replace(/(^|[\s(])#(\d{2,4})\b/g, `$1<a href="${REPO}/issues/$2">#$2</a>`);
+    .replace(/(^|[\s(])#(\d{2,4})\b/g, `$1<a href="${HISTORICAL_REPO}/issues/$2">#$2</a>`);
 }
 
-const issue = n => `<a href="${REPO}/issues/${n}">#${n}</a>`;
+const issue = n => `<a href="${HISTORICAL_REPO}/issues/${n}">#${n}</a>`;
 
-module.exports = {REPO, esc, prose, issue};
+module.exports = {REPO, HISTORICAL_REPO, commitUrl, esc, prose, issue};

@@ -202,6 +202,11 @@ impl Expr<'_> {
             "true" => Value::Bool(true),
             "false" => Value::Bool(false),
             "null" => Value::Null,
+            // a status function: the job runs whatever its needs came to
+            "always" => {
+                assert!(self.eat("(") && self.eat(")"));
+                Value::Bool(true)
+            }
             "format" => {
                 assert!(self.eat("("));
                 let mut args = vec![self.or()];
@@ -332,9 +337,24 @@ fn drafts_run_nothing_and_ready_pull_requests_and_main_run_everything() {
     }
 }
 
+fn gate() -> Yaml {
+    workflows().into_iter().find(|(n, _)| n == "pr-gate.yml").expect("pr-gate.yml").1
+}
+
+/// The gate's own events: it has no `branches` filter, so `outcome` (which
+/// applies one) does not fit it.
+fn gate_outcome(ctx: &Value) -> (Vec<String>, String) {
+    let wf = gate();
+    let action = ctx["github"]["event"]["action"].as_str().unwrap();
+    assert!(strings(&triggers(&wf)["pull_request"]["types"]).iter().any(|t| t == action), "pr-gate.yml does not start on {action:?}");
+    let jobs = wf["jobs"].as_hash().unwrap();
+    let run = jobs.iter().filter(|(_, j)| j["if"].as_str().is_none_or(|c| truthy(&eval(c, ctx)))).map(|(k, _)| k.as_str().unwrap().to_string()).collect();
+    (run, interpolate(wf["concurrency"]["group"].as_str().unwrap(), ctx))
+}
+
 #[test]
 fn required_gate_is_triggered_for_all_pr_paths_and_bases() {
-    let (_, gate) = workflows().into_iter().find(|(n, _)| n == "pr-gate.yml").unwrap();
+    let gate = gate();
     let pr = &triggers(&gate)["pull_request"];
     for filter in ["paths", "paths-ignore", "branches", "branches-ignore"] {
         assert!(pr[filter].is_badvalue(), "required PR workflow must be unfiltered: {filter}");
@@ -346,4 +366,68 @@ fn required_gate_is_triggered_for_all_pr_paths_and_bases() {
     assert_eq!(job["name"].as_str(), Some("Butterfly PR check"));
     assert_eq!(job["if"].as_str(), Some("always()"));
     assert_eq!(strings(&job["needs"]), vec!["scope", "suite"]);
+}
+
+/// A title or description edit of a pull request is `edited` too. In the
+/// gate it shared the concurrency group of real runs with
+/// `cancel-in-progress`, so it cancelled the run in progress, and that run's
+/// `gate` job recorded a failed `Butterfly PR check` (#7). It now runs in a
+/// group of its own and validates nothing -- but `gate` itself still runs:
+/// it is the required check, and skipped it would read as passed.
+#[test]
+fn a_text_edit_cancels_no_gate_run_and_still_reports_the_required_check() {
+    let (_, real) = gate_outcome(&pr_event("synchronize", "main", false, Value::Null));
+    for (changes, base, draft) in [(json!({ "title": { "from": "old" } }), "main", false), (json!({ "body": { "from": "old" } }), "feature/parent", true)] {
+        let (run, group) = gate_outcome(&pr_event("edited", base, draft, changes));
+        assert_eq!(run, vec!["gate".to_string()], "a text edit validates nothing, and the required check still reports");
+        assert_ne!(group, real, "a text edit shares the concurrency group of a real run and would cancel it");
+    }
+    // two edits in a row do not cancel each other either
+    let a = gate_outcome(&pr_event("edited", "main", false, json!({ "title": { "from": "a" } }))).1;
+    let b = gate_outcome(&pr_event("edited", "main", false, json!({ "title": { "from": "a longer one" } }))).1;
+    assert_ne!(a, b);
+}
+
+/// What `gate` does on a text edit is restate the last real verdict, in a
+/// step of its own; the step that judges this run's jobs must not run then
+/// (scope was skipped, and it would fail), and the restating step must not
+/// run on a real event.
+#[test]
+fn the_gate_judges_real_runs_and_restates_on_a_text_edit() {
+    let gate = gate();
+    let job = &gate["jobs"]["gate"];
+    let steps = job["steps"].as_vec().unwrap();
+    assert_eq!(steps.len(), 2, "one step judges, one restates");
+    let runs = |ctx: &Value| -> Vec<bool> { steps.iter().map(|s| truthy(&eval(s["if"].as_str().expect("each gate step is conditional"), ctx))).collect() };
+    for real in [
+        pr_event("opened", "main", true, Value::Null),
+        pr_event("synchronize", "feature/parent", false, Value::Null),
+        pr_event("edited", "main", false, json!({ "base": { "ref": { "from": "feature/parent" } } })),
+    ] {
+        assert_eq!(runs(&real), vec![true, false], "a real event is judged: {real}");
+    }
+    assert_eq!(runs(&pr_event("edited", "main", false, json!({ "body": { "from": "old" } }))), vec![false, true], "a text edit restates");
+    assert_eq!(job["permissions"]["actions"].as_str(), Some("read"), "restating reads the earlier runs");
+    let script = steps[1]["run"].as_str().unwrap();
+    assert!(script.contains("head_sha=$HEAD_SHA") && script.contains("Check documentation and select tests"), "it looks for the newest real run on this head");
+}
+
+/// Every real event runs the whole gate, in the one group per pull request:
+/// drafts and stacked pull requests included, since the check is required,
+/// and a retarget of the base, which is a new thing to validate.
+#[test]
+fn every_real_event_runs_the_whole_gate_in_the_pull_requests_group() {
+    let (_, real) = gate_outcome(&pr_event("synchronize", "main", false, Value::Null));
+    let events = [
+        pr_event("opened", "main", true, Value::Null),
+        pr_event("reopened", "feature/parent", false, Value::Null),
+        pr_event("ready_for_review", "main", false, Value::Null),
+        pr_event("edited", "main", false, json!({ "base": { "ref": { "from": "feature/parent" } } })),
+    ];
+    for e in events {
+        let (run, group) = gate_outcome(&e);
+        // `suite` is chosen by scope's output, which no event decides
+        assert!(run.contains(&"scope".to_string()) && run.contains(&"gate".to_string()), "{e}: {run:?}");
+        assert_eq!(group, real, "{e}: a real run replaces the one before it");
+    }
 }

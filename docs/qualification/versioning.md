@@ -17,11 +17,12 @@ The qualification directory was chosen to keep the normative versioning
 rules alongside their assessment.
 
 These rules also exist for a specific reason: DO-330 §7.1.a and §7.2.7.d
-require configuration items to be identified unambiguously, and the
-DO-330 assessment (`DO-330-assessment.md`, findings 4 and T-8 objectives 1–2)
-records their absence as the gap this closes. They belong beside the
-assessment that demanded them. The [contributor guide](../../CONTRIBUTING.md) now
-links here so there is one authoritative version of these rules.
+require configuration items to be identified unambiguously, and the project's
+internal DO-330 assessment (not published in this repository; findings 4 and
+T-8 objectives 1–2) records their absence as the gap this closes. They belong
+beside the qualification records that demanded them. The
+[contributor guide](../../CONTRIBUTING.md) now links here so there is one
+authoritative version of these rules.
 
 ## What is versioned
 
