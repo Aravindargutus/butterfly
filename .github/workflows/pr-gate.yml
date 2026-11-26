@@ -1,19 +1,34 @@
 name: Pull request validation
 
+# The one required check (`Butterfly PR check`), so it starts for every pull
+# request -- drafts and any base included -- and picks the suite by path.
+# The draft and base budget of audit, docs-numbers and showcase (#308) does
+# not apply here on purpose: a required check that skipped would read as
+# passed.
 on:
   pull_request:
+    # `edited` is for one transition: retargeting the base emits `edited` and
+    # nothing else, and the new base needs its own run. Any other edit (title,
+    # description) validates nothing new; see the concurrency group and the
+    # `gate` job for what it does instead (#7).
     types: [opened, synchronize, reopened, ready_for_review, edited]
 
 permissions:
   contents: read
 
 concurrency:
-  group: pr-validation-${{ github.event.pull_request.number }}
+  # A text-only edit runs in a group of its own, so it can never cancel (or
+  # queue behind) a real run. In the shared group it cancelled the run in
+  # progress, and the cancelled run's `gate` then recorded a failed
+  # `Butterfly PR check` on a head nothing was wrong with (#7).
+  group: pr-validation-${{ github.event.pull_request.number }}${{ (github.event.action == 'edited' && !github.event.changes.base) && format('-noop-{0}', github.run_id) || '' }}
   cancel-in-progress: true
 
 jobs:
   scope:
     name: Check documentation and select tests
+    # an `edited` event counts only when it retargeted the base
+    if: ${{ github.event.action != 'edited' || github.event.changes.base }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     outputs:
@@ -60,9 +75,13 @@ jobs:
     if: always()
     needs: [scope, suite]
     runs-on: ubuntu-24.04
-    timeout-minutes: 2
+    # long enough to wait out a suite in progress on a text-only edit
+    timeout-minutes: 60
+    permissions:
+      actions: read
     steps:
       - name: Verify all selected jobs passed
+        if: ${{ github.event.action != 'edited' || github.event.changes.base }}
         env:
           SCOPE: ${{ needs.scope.result }}
           FULL: ${{ needs.scope.outputs.full }}
@@ -74,3 +93,52 @@ jobs:
             true/success|false/skipped) ;;
             *) exit 1 ;;
           esac
+      # A title or description edit validates nothing, but this job still
+      # reports: it is the required check, and the newest `Butterfly PR check`
+      # on a head is the one branch protection reads. Skipped, it would read
+      # as passed and a failing head could be merged by editing its title;
+      # failed, it would be the false failure of #7. So it restates the
+      # verdict of the newest real run on this head, waiting for it if it is
+      # still going. A real run is one whose scope job was not skipped.
+      - name: Restate the last real verdict for this head
+        if: ${{ github.event.action == 'edited' && !github.event.changes.base }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          THIS_RUN: ${{ github.run_id }}
+        run: |
+          deadline=$(( $(date +%s) + 55 * 60 ))
+          while :; do
+            verdict=none
+            runs=$(gh api "repos/$REPO/actions/workflows/pr-gate.yml/runs?head_sha=$HEAD_SHA&event=pull_request&per_page=100" \
+              --jq "[.workflow_runs[] | select(.id != $THIS_RUN)] | sort_by(.created_at) | reverse | .[] | \"\(.id) \(.status) \(.conclusion)\"")
+            while read -r id status conclusion; do
+              [ -n "$id" ] || continue
+              scope=$(gh api "repos/$REPO/actions/runs/$id/jobs?per_page=100" \
+                --jq '[.jobs[] | select(.name == "Check documentation and select tests")][0] | "\(.status) \(.conclusion)"')
+              case "$scope" in
+                "completed skipped"|"null null"|"") continue ;; # another text-only edit
+              esac
+              if [ "$status" = completed ]; then verdict=$conclusion; else verdict=pending; fi
+              echo "newest real run on $HEAD_SHA: $id ($status, $conclusion)"
+              break
+            done <<EOF
+          $runs
+          EOF
+            case "$verdict" in
+              success) exit 0 ;;
+              pending)
+                if [ "$(date +%s)" -ge "$deadline" ]; then
+                  echo "::error::the run validating $HEAD_SHA has not finished; re-run this job once it has"
+                  exit 1
+                fi
+                sleep 30 ;;
+              none)
+                echo "::error::no validation run found for $HEAD_SHA; push or re-run the checks"
+                exit 1 ;;
+              *)
+                echo "::error::the last validation run for $HEAD_SHA ended in $verdict"
+                exit 1 ;;
+            esac
+          done

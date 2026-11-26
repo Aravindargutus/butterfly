@@ -30,7 +30,7 @@ const path = require('node:path');
 const {ROOT, load, loadMatrix, CAPTURE_SCHEMA} = require('./spec.cjs');
 const {fill} = require('./facts.cjs');
 
-const {REPO, esc, prose} = require('./markup.cjs');
+const {HISTORICAL_REPO, ASSESSMENT_URL, commitUrl, esc, prose} = require('./markup.cjs');
 // The section whose evidence the landing table is read from. It is the section
 // the table links to, and its numbers must be that section's, not whatever the
 // last partial run happened to rebuild.
@@ -151,7 +151,7 @@ function render({spec, cap, matrix, inline, dir}) {
     throw new Error(`capture.json is ${JSON.stringify(cap.schema)}, and this builder reads ${CAPTURE_SCHEMA}. Re-run scripts/showcase.sh.`);
   }
   const meta = cap.meta;
-  const issue = n => `<a href="${REPO}/issues/${n}">#${n}</a>`;
+  const issue = n => `<a href="${HISTORICAL_REPO}/issues/${n}">#${n}</a>`;
 
   /* ------------------ the facts a section was captured with ---------------- */
   // Never one object shared by the whole page. `--only` refreshes some
@@ -260,10 +260,10 @@ function render({spec, cap, matrix, inline, dir}) {
     // earlier commit than the one the lede and the footer name. Say which,
     // in the section itself (#212 review).
     const ownCommit = rc && rc.commit && rc.commit !== meta.commit
-      ? `<span class="chip partial">captured at <a href="${REPO}/commit/${esc(rc.commit)}"><code>${esc(rc.commit.slice(0, 12))}</code></a>, not at this page's commit</span>`
+      ? `<span class="chip partial">captured at <a href="${commitUrl(esc(rc.commit), rc.repo)}"><code>${esc(rc.commit.slice(0, 12))}</code></a>, not at this page's commit</span>`
       : '';
     const head = `<header class="sec-head"><span class="vid">${f.id}</span><h3 id="${f.id}">${esc(f.title)}</h3>
-      <span class="chip ${st.key}">${esc(st.label)}</span>${ownCommit}<a class="iss" href="${REPO}/issues/${f.issue}">section issue #${f.issue}</a></header>`;
+      <span class="chip ${st.key}">${esc(st.label)}</span>${ownCommit}<a class="iss" href="${HISTORICAL_REPO}/issues/${f.issue}">section issue #${f.issue}</a></header>`;
 
     if (f.status === 'pending') {
       return `<section class="feature pending" aria-labelledby="${f.id}">${head}
@@ -452,7 +452,7 @@ function render({spec, cap, matrix, inline, dir}) {
     const refreshed = !meta.partial || meta.partial.includes(DEMO_SECTION);
     const provenance = refreshed
       ? `Read from the evidence of this page's capture run (${demoLink}).`
-      : `Read from the evidence ${demoLink} was captured with${demoCommit !== meta.commit ? `, at <a href="${REPO}/commit/${esc(demoCommit)}"><code>${esc(demoCommit.slice(0, 12))}</code></a>` : ''}: this page's last capture run refreshed only ${meta.partial.map(esc).join(', ')}, so these numbers come from the run before it.`;
+      : `Read from the evidence ${demoLink} was captured with${demoCommit !== meta.commit ? `, at <a href="${commitUrl(esc(demoCommit), (cap.features[demoFeature.id] || {}).repo || meta.repo)}"><code>${esc(demoCommit.slice(0, 12))}</code></a>` : ''}: this page's last capture run refreshed only ${meta.partial.map(esc).join(', ')}, so these numbers come from the run before it.`;
     demo = `<div class="demo"><h3>One function, four builds</h3>
       <p><code>clamp_altitude</code> in <code>examples/c</code>, two <code>if</code> statements, at four optimisation levels. ${provenance}</p>
       <div class="scroll"><table><thead><tr><th>build</th><th>source lines covered</th><th>object blocks</th><th>instructions</th><th>gaps</th></tr></thead>
@@ -537,7 +537,8 @@ function render({spec, cap, matrix, inline, dir}) {
   const totalBytes = shots.reduce((n, s) => n + s.bytes, 0);
   const biggest = shots.reduce((m, s) => (s.bytes > (m?.bytes || 0) ? s : m), null);
   const reused = Object.entries(cap.fixtures).filter(([, x]) => x.reused).map(([n]) => n);
-  const qualDoc = inline ? `${REPO}/blob/${meta.commit}/docs/qualification/DO-330-assessment.md` : '../qualification/DO-330-assessment.md';
+  // not in this repository: linked where the README links it (#7)
+  const qualDoc = ASSESSMENT_URL;
   const tools = Object.entries(meta.tools).map(([k, val]) => `<div><dt>${esc(k)}</dt><dd>${val ? esc(val) : '<span class="muted">not installed</span>'}</dd></div>`).join('');
 
   const css = fs.readFileSync(path.join(__dirname, 'page.css'), 'utf8');
@@ -600,7 +601,7 @@ ${groups.map(g => `<section class="group" aria-labelledby="g-${g.id}"><h2 id="g-
 
 <footer class="foot"><div class="wrap">
   <dl class="meta">
-    <div><dt>commit</dt><dd><a href="${REPO}/commit/${esc(meta.commit)}"><code>${esc(meta.commit)}</code></a>${meta.modified ? ` <b class="warn">plus ${plural(meta.modified, 'uncommitted change', 'uncommitted changes')} in the work tree</b>` : ''} <span class="muted">(${esc(meta.commitDate)}, branch ${esc(meta.branch)})</span>${
+    <div><dt>commit</dt><dd><a href="${commitUrl(esc(meta.commit), meta.repo)}"><code>${esc(meta.commit)}</code></a>${meta.modified ? ` <b class="warn">plus ${plural(meta.modified, 'uncommitted change', 'uncommitted changes')} in the work tree</b>` : ''} <span class="muted">(${esc(meta.commitDate)}, branch ${esc(meta.branch)})</span>${
       // `plural()` covered the subject and left the second clause singular,
       // so this rendered "23 sections were captured at an earlier commit and
       // says so beside its title" -- a subject-verb disagreement in the

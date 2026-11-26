@@ -157,7 +157,7 @@ jobs:
 
           butterfly is **not qualified** under DO-330. What that means, and what
           qualification would take, is in
-          [the assessment](${repo_at_tag}/docs/qualification/DO-330-assessment.md).
+          [the assessment](https://github.com/dhaksh64/butterfly/blob/8104609a78c0e629db0b338c36bdbd3b9f33b5c4/docs/qualification/DO-330-assessment.md).
           NOTES
           gh release create "${GITHUB_REF_NAME}" \
             --verify-tag \

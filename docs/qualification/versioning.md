@@ -20,7 +20,9 @@ it.
 
 These rules also exist for a specific reason: DO-330 §7.1.a and §7.2.7.d
 require configuration items to be identified unambiguously, and the
-DO-330 assessment (`DO-330-assessment.md`, findings 4 and T-8 objectives 1–2)
+DO-330 assessment ([`DO-330-assessment.md`](https://github.com/dhaksh64/butterfly/blob/8104609a78c0e629db0b338c36bdbd3b9f33b5c4/docs/qualification/DO-330-assessment.md),
+which is kept at that commit rather than in this repository; findings 4 and
+T-8 objectives 1–2)
 records their absence as the gap this closes. They belong beside the
 assessment that demanded them. If a `CONTRIBUTING.md` is written later it
 should link here rather than restate this.
