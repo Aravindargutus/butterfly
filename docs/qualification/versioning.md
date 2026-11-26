@@ -10,13 +10,11 @@ work (#112).
 
 ## Why this file and not `CONTRIBUTING.md`
 
-#120 offers a choice of `CONTRIBUTING.md` or this path. There is no
-`CONTRIBUTING.md` in the tree and nothing else that would go in one has been
-written down, so creating the file to hold this one section would put a
-contributor-facing document in the repository that answers a single question
-and stays silent on every other one a contributor asks — how to run the tests,
-what a branch is named, what a review expects. That is worse than not having
-it.
+When #120 was written, the project had no contributor guide. Its only
+documented contributor policy concerned versioning, so a standalone guide
+would have left questions about branches, testing and review unanswered.
+The qualification directory was chosen to keep the normative versioning
+rules alongside their assessment.
 
 These rules also exist for a specific reason: DO-330 §7.1.a and §7.2.7.d
 require configuration items to be identified unambiguously, and the
@@ -24,8 +22,8 @@ DO-330 assessment ([`DO-330-assessment.md`](https://github.com/dhaksh64/butterfl
 which is kept at that commit rather than in this repository; findings 4 and
 T-8 objectives 1–2)
 records their absence as the gap this closes. They belong beside the
-assessment that demanded them. If a `CONTRIBUTING.md` is written later it
-should link here rather than restate this.
+assessment that demanded them. The [contributor guide](../../CONTRIBUTING.md) now
+links here so there is one authoritative version of these rules.
 
 ## What is versioned
 

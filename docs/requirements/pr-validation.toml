@@ -1,0 +1,12 @@
+# These requirements govern the checker itself. Full CI independently runs its behavioral tests.
+[BF-PR-001]
+statement = "Every pull request, including a documentation-only change, shall add or revise a written requirement and add or update a CI test suite linked to each added or revised statement."
+tests = ["scripts/test_pr_requirements.py"]
+
+[BF-PR-002]
+statement = "The PR check shall compare the complete branch change since its merge base and validate unique IDs and linked suites against the prospective merge tree. A substantive removal from a retained suite shall count as a test change."
+tests = ["scripts/test_pr_requirements.py"]
+
+[BF-PR-003]
+statement = "The PR check shall accept a browser check under ui/browser/checks as a linked suite, shall treat a line as a comment only when it is a line comment or inside a block comment, shall require a linked test change when a requirement's suites are reassigned or the requirement is removed, and shall explain a conflict with the base branch instead of reporting the failed Git command."
+tests = ["scripts/test_pr_requirements.py"]
