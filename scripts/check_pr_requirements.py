@@ -45,11 +45,37 @@ def ci_suite(path, files, members):
     if path not in files:
         return False
     # This script is exercised explicitly in full CI, alongside the Cargo and Node suites.
-    if path == "scripts/test_pr_requirements.py" or re.fullmatch(r"ui/[^/]+\.test\.cjs", path):
+    # The browser checks are the ones ui/browser/run.cjs runs there.
+    if path == "scripts/test_pr_requirements.py" or re.fullmatch(r"ui/[^/]+\.test\.cjs|ui/browser/checks/[^/]+\.cjs", path):
         return True
     match = re.fullmatch(r"crates/([^/]+)/tests/[^/]+\.rs", path)
     return bool(match and f"crates/{match[1]}/Cargo.toml" in files and
                 f"crates/{match[1]}" in members)
+
+
+def code_lines(path, blob):
+    """The lines of a suite that are code: not blank, and not comment only.
+
+    A `*` opens a comment line only inside a `/* ... */` block; elsewhere it is
+    code (`*flag = true;`, a generator method), so the block is followed
+    through the file rather than guessed from each line's first character.
+    """
+    result = []
+    in_block = False
+    for line in blob.splitlines():
+        line = line.strip()
+        if path.endswith(".py"):
+            is_code = bool(line) and not line.startswith(b"#")
+        elif in_block:
+            is_code = False
+            in_block = b"*/" not in line
+        elif line.startswith(b"/*"):
+            is_code = False
+            in_block = b"*/" not in line[2:]
+        else:
+            is_code = bool(line) and not line.startswith(b"//")
+        result.append(is_code)
+    return result
 
 
 def check(base, head):
@@ -60,33 +86,47 @@ def check(base, head):
     after = files_at(head)
     old = requirements(before)
     new = requirements(after)
-    changes = [req_id for req_id, spec in new.items() if req_id not in old or spec[0] != old[req_id][0]]
-    if not changes:
+    # A statement or its list of suites changing is a change to verify; so is
+    # a requirement going away with the behavior it described.
+    changes = [req_id for req_id, spec in new.items() if req_id not in old or spec != old[req_id]]
+    removed = [req_id for req_id in old if req_id not in new]
+    if not changes and not removed:
         raise ValueError("add or update a requirement statement under docs/requirements/ for this PR")
-    merged = after if ancestor == base else files_at(git("merge-tree", "--write-tree", "--end-of-options", base, head).decode().splitlines()[0])
+    if ancestor == base:
+        merged = after
+    else:
+        try:
+            tree = git("merge-tree", "--write-tree", "--end-of-options", base, head)
+        except subprocess.CalledProcessError as error:
+            if error.returncode != 1:
+                raise
+            raise ValueError("cannot build the prospective merge tree: the branch conflicts with its base. "
+                             "Merge or rebase onto the base branch, resolve the conflicts, and run this again") from None
+        merged = files_at(tree.decode().splitlines()[0])
     registry = new if merged is after else requirements(merged)
     members = tomllib.loads(git("cat-file", "--end-of-options", "blob", merged["Cargo.toml"]).decode())["workspace"]["members"]
+
+    def blob(files, path):
+        return git("cat-file", "--end-of-options", "blob", files[path])
 
     @cache
     def changed_test(path):
         if path not in after or before.get(path) == after[path]:
             return False
-        comments = (b"#",) if path.endswith(".py") else (b"//", b"/*", b"*")
-        def code(line):
-            line = line.strip()
-            return bool(line) and not line.startswith(comments)
-
+        was = code_lines(path, blob(before, path)) if path in before else []
+        now = code_lines(path, blob(after, path))
         patch = git("diff", "--unified=0", "--ignore-all-space", "--no-color", "--no-ext-diff", "--no-textconv",
                     "--no-renames", "--end-of-options", ancestor, head, "--", path)
-        removed = False
+        removed_code = False
         for line in patch.splitlines():
-            if line.startswith((b"+++ ", b"--- ")):
+            hunk = re.match(rb"@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@", line)
+            if not hunk:
                 continue
-            if line.startswith(b"+") and code(line[1:]):
+            old_start, old_count, new_start, new_count = (int(n) if n is not None else 1 for n in hunk.groups())
+            if any(now[new_start - 1:new_start - 1 + new_count]):
                 return True
-            if line.startswith(b"-") and code(line[1:]):
-                removed = True
-        return removed and any(code(line) for line in git("cat-file", "--end-of-options", "blob", after[path]).splitlines())
+            removed_code = removed_code or any(was[old_start - 1:old_start - 1 + old_count])
+        return removed_code and any(now)
 
     for req_id, (_, tests) in registry.items():
         for path in tests:
@@ -97,6 +137,11 @@ def check(base, head):
         if not any(changed_test(path) for path in tests):
             raise ValueError(f"{req_id}: add or update a linked test suite in this PR")
         print(f"{req_id}: " + ", ".join(sorted(tests)))
+    for req_id in removed:
+        tests = old[req_id][1]
+        if not any(path not in after or changed_test(path) for path in tests):
+            raise ValueError(f"{req_id}: removed, so remove or update a test suite it linked in this PR")
+        print(f"{req_id}: removed with " + ", ".join(sorted(tests)))
 
 
 if __name__ == "__main__":

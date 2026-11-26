@@ -124,6 +124,70 @@ class PolicyTests(unittest.TestCase):
         self.commit()
         self.assertIn("requirement statement", self.verdict(advanced_base).stderr)
 
+    def test_browser_checks_are_linkable_suites(self):
+        path = "ui/browser/checks/help.cjs"
+        self.write(path, "module.exports = async page => checkHelp(page);\n")
+        self.write(REQ, self.record("The help tab shall show the input format.", path))
+        self.commit()
+        result = self.verdict()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.write(REQ, self.record("The help tab shall show the format.", "ui/browser/harness.cjs"))
+        self.write("ui/browser/harness.cjs", "module.exports = {};\n")
+        self.commit()
+        self.assertIn("unsupported CI test suite", self.verdict().stderr)
+
+    def test_a_star_is_a_comment_only_inside_a_block_comment(self):
+        self.write("Cargo.toml", '[workspace]\nmembers = ["crates/demo"]\n')
+        self.write("crates/demo/Cargo.toml", '[package]\nname = "demo"\n')
+        suite = "crates/demo/tests/demo.rs"
+        body = "/*\n * what the test is for\n */\n#[test]\nfn bumps() {\n    let mut n = 0;\n    *(&mut n) += %d;\n}\n"
+        self.write(suite, body % 1)
+        self.base = self.commit()
+        self.write(REQ, self.record("The counter shall advance by two.", suite))
+        self.write(suite, (body % 1).replace(" * what the test is for", " * what this test is for"))
+        self.commit()
+        self.assertIn("linked test suite", self.verdict().stderr)
+        self.write(suite, body % 2)
+        self.commit()
+        result = self.verdict()
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_a_conflict_with_the_base_is_explained(self):
+        self.git("checkout", "-qb", "other")
+        self.write("README.md", "# Their manual\n")
+        advanced_base = self.commit()
+        self.git("checkout", "-q", self.base)
+        self.write("README.md", "# Our manual\n")
+        self.write(REQ, self.record("The help shall show examples."))
+        self.write(SUITE, "test('help', verifyHelp);\n")
+        self.commit()
+        result = self.verdict(advanced_base)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("conflicts with its base", result.stderr)
+        self.assertNotIn("merge-tree", result.stderr)
+
+    def test_relinking_a_requirement_needs_a_change_in_the_new_suite(self):
+        other = "ui/other.test.cjs"
+        self.write(other, "test('other', checkOther);\n")
+        self.base = self.commit()
+        statement = "The help shall show the input format."
+        self.write(REQ, self.record(statement, other))
+        self.commit()
+        self.assertIn("linked test suite", self.verdict().stderr)
+        self.write(other, "test('other', checkOther);\ntest('format', checkFormat);\n")
+        self.commit()
+        result = self.verdict()
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_removing_a_requirement_needs_its_suite_removed_or_updated(self):
+        self.write(REQ, "")
+        self.commit()
+        self.assertIn("BF-DOC-001: removed", self.verdict().stderr)
+        self.git("rm", "-q", SUITE)
+        self.commit()
+        result = self.verdict()
+        self.assertEqual(result.returncode, 0, result.stderr)
+
 
 if __name__ == "__main__":
     unittest.main()

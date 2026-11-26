@@ -33,6 +33,16 @@ proof = "crates/ingest/tests/my_test.rs::the_feature_works"
 caveat = "Explain the limitation."
 ```
 
+The matrix is also rendered into `README.md`, `docs/butterfly.html` and
+`docs/showcase/index.html`, and the required PR check fails when they are out
+of step with it. After editing `support/matrix.toml` (or
+`support/features.toml`), regenerate them and commit the result:
+
+```sh
+node scripts/showcase/matrix-docs.cjs
+node scripts/showcase/build.cjs --dir docs/showcase
+```
+
 ### 2. Write a worked example
 
 Create a minimal project under `examples/` that exercises the feature:
