@@ -30,7 +30,7 @@ const path = require('node:path');
 const {ROOT, load, loadMatrix, CAPTURE_SCHEMA} = require('./spec.cjs');
 const {fill} = require('./facts.cjs');
 
-const {REPO, esc, prose} = require('./markup.cjs');
+const {HISTORICAL_REPO, commitUrl, esc, prose} = require('./markup.cjs');
 // The section whose evidence the landing table is read from. It is the section
 // the table links to, and its numbers must be that section's, not whatever the
 // last partial run happened to rebuild.
@@ -151,7 +151,7 @@ function render({spec, cap, matrix, inline, dir}) {
     throw new Error(`capture.json is ${JSON.stringify(cap.schema)}, and this builder reads ${CAPTURE_SCHEMA}. Re-run scripts/showcase.sh.`);
   }
   const meta = cap.meta;
-  const issue = n => `<a href="${REPO}/issues/${n}">#${n}</a>`;
+  const issue = n => `<a href="${HISTORICAL_REPO}/issues/${n}">#${n}</a>`;
 
   /* ------------------ the facts a section was captured with ---------------- */
   // Never one object shared by the whole page. `--only` refreshes some
@@ -260,10 +260,10 @@ function render({spec, cap, matrix, inline, dir}) {
     // earlier commit than the one the lede and the footer name. Say which,
     // in the section itself (#212 review).
     const ownCommit = rc && rc.commit && rc.commit !== meta.commit
-      ? `<span class="chip partial">captured at <a href="${REPO}/commit/${esc(rc.commit)}"><code>${esc(rc.commit.slice(0, 12))}</code></a>, not at this page's commit</span>`
+      ? `<span class="chip partial">captured at <a href="${commitUrl(esc(rc.commit), rc.repo)}"><code>${esc(rc.commit.slice(0, 12))}</code></a>, not at this page's commit</span>`
       : '';
     const head = `<header class="sec-head"><span class="vid">${f.id}</span><h3 id="${f.id}">${esc(f.title)}</h3>
-      <span class="chip ${st.key}">${esc(st.label)}</span>${ownCommit}<a class="iss" href="${REPO}/issues/${f.issue}">section issue #${f.issue}</a></header>`;
+      <span class="chip ${st.key}">${esc(st.label)}</span>${ownCommit}<a class="iss" href="${HISTORICAL_REPO}/issues/${f.issue}">section issue #${f.issue}</a></header>`;
 
     if (f.status === 'pending') {
       return `<section class="feature pending" aria-labelledby="${f.id}">${head}
@@ -448,11 +448,15 @@ function render({spec, cap, matrix, inline, dir}) {
     // "captured at ..." chip to correct it, and it sits two paragraphs under
     // a lede saying the page was not captured in one pass.
     const demoLink = `<a href="#${DEMO_SECTION}">${DEMO_SECTION}</a>`;
-    const demoCommit = (cap.features[demoFeature.id] || {}).commit || meta.commit;
+    const demoRec = cap.features[demoFeature.id] || {};
+    const demoCommit = demoRec.commit || meta.commit;
+    // Resolve commit and repository from the same record so a legacy pre-move
+    // V14 commit (no `repo`) does not inherit a post-move page's `meta.repo`.
+    const demoRepo = demoRec.commit ? demoRec.repo : meta.repo;
     const refreshed = !meta.partial || meta.partial.includes(DEMO_SECTION);
     const provenance = refreshed
       ? `Read from the evidence of this page's capture run (${demoLink}).`
-      : `Read from the evidence ${demoLink} was captured with${demoCommit !== meta.commit ? `, at <a href="${REPO}/commit/${esc(demoCommit)}"><code>${esc(demoCommit.slice(0, 12))}</code></a>` : ''}: this page's last capture run refreshed only ${meta.partial.map(esc).join(', ')}, so these numbers come from the run before it.`;
+      : `Read from the evidence ${demoLink} was captured with${demoCommit !== meta.commit ? `, at <a href="${commitUrl(esc(demoCommit), demoRepo)}"><code>${esc(demoCommit.slice(0, 12))}</code></a>` : ''}: this page's last capture run refreshed only ${meta.partial.map(esc).join(', ')}, so these numbers come from the run before it.`;
     demo = `<div class="demo"><h3>One function, four builds</h3>
       <p><code>clamp_altitude</code> in <code>examples/c</code>, two <code>if</code> statements, at four optimisation levels. ${provenance}</p>
       <div class="scroll"><table><thead><tr><th>build</th><th>source lines covered</th><th>object blocks</th><th>instructions</th><th>gaps</th></tr></thead>
@@ -537,7 +541,6 @@ function render({spec, cap, matrix, inline, dir}) {
   const totalBytes = shots.reduce((n, s) => n + s.bytes, 0);
   const biggest = shots.reduce((m, s) => (s.bytes > (m?.bytes || 0) ? s : m), null);
   const reused = Object.entries(cap.fixtures).filter(([, x]) => x.reused).map(([n]) => n);
-  const qualDoc = inline ? `${REPO}/blob/${meta.commit}/docs/qualification/DO-330-assessment.md` : '../qualification/DO-330-assessment.md';
   const tools = Object.entries(meta.tools).map(([k, val]) => `<div><dt>${esc(k)}</dt><dd>${val ? esc(val) : '<span class="muted">not installed</span>'}</dd></div>`).join('');
 
   const css = fs.readFileSync(path.join(__dirname, 'page.css'), 'utf8');
@@ -588,7 +591,7 @@ ${groups.map(g => `<section class="group" aria-labelledby="g-${g.id}"><h2 id="g-
 
 <section id="qualification" aria-labelledby="h-q"><h2 id="h-q">Qualification position</h2>
   <p>The criteria and the level are the <b>applicant's</b> determination for their own intended use, recorded in the PSAC; they are not properties of the tool. A project that claims credit only for the objectives butterfly automates — Table A-7 objectives 5, 6 and 7, and objective 8 — would classify it as a DO-178C §12.2.2 <b>Criteria 3</b> tool, which <b>DO-178C Table 12-1</b> puts at <b>TQL-5</b> for Levels A to D. Claiming that some other activity is reduced because butterfly exists — dropping the human source-to-object review on the strength of the projection, or treating <code>butterfly check</code>'s exit status as the verification of the coverage objectives — is a Criteria 2 use, and Criteria 2 is TQL-4 at Levels A and B.</p>
-  <p>butterfly is <b>not qualified</b>: no DO-330 life-cycle data exists for it today. It does not perform the source-to-object correspondence review (objective 9) — it presents instruction-level evidence for a human reviewer and records the verdict — and the exploratory-build function (<code>butterfly build</code>) is excluded from any set of qualified functions, because its output is object code. The project's own assessment of what a TQL-5 package would take, and of the uses that would move it to Criteria 2, is <a href="${qualDoc}">docs/qualification/DO-330-assessment.md</a>.</p></section>
+  <p>butterfly is <b>not qualified</b>: no DO-330 life-cycle data exists for it today. It does not perform the source-to-object correspondence review (objective 9) — it presents instruction-level evidence for a human reviewer and records the verdict — and the exploratory-build function (<code>butterfly build</code>) is excluded from any set of qualified functions, because its output is object code. The project's detailed DO-330 assessment is maintained internally and is not published in this repository.</p></section>
 
 <section id="made" aria-labelledby="h-made"><h2 id="h-made">How this page is made</h2>
   <p><code>scripts/showcase.sh</code> builds butterfly from the checkout, runs each example's build commands and each section's terminal commands verbatim from the repository root, keeps their real output and exit status, serves each example with the browser-check harness, which starts <code>butterfly serve</code> on a free port with its own scratch files rather than running the printed <code>butterfly serve</code> line, drives the viewer with Playwright and takes the screenshots. A command that ends with a status other than the one written in <code>support/features.toml</code>, or a screenshot that does not show the strings its section lists there as the point of it (its <code>expect</code>), fails the run. Nothing checks that a caption's every assertion is among those strings — that is a reading, and it is what the claims audit (${issue(200)}) is for. What the host cannot show is rendered as not captured, with the reason.</p>
@@ -600,7 +603,7 @@ ${groups.map(g => `<section class="group" aria-labelledby="g-${g.id}"><h2 id="g-
 
 <footer class="foot"><div class="wrap">
   <dl class="meta">
-    <div><dt>commit</dt><dd><a href="${REPO}/commit/${esc(meta.commit)}"><code>${esc(meta.commit)}</code></a>${meta.modified ? ` <b class="warn">plus ${plural(meta.modified, 'uncommitted change', 'uncommitted changes')} in the work tree</b>` : ''} <span class="muted">(${esc(meta.commitDate)}, branch ${esc(meta.branch)})</span>${
+    <div><dt>commit</dt><dd><a href="${commitUrl(esc(meta.commit), meta.repo)}"><code>${esc(meta.commit)}</code></a>${meta.modified ? ` <b class="warn">plus ${plural(meta.modified, 'uncommitted change', 'uncommitted changes')} in the work tree</b>` : ''} <span class="muted">(${esc(meta.commitDate)}, branch ${esc(meta.branch)})</span>${
       // `plural()` covered the subject and left the second clause singular,
       // so this rendered "23 sections were captured at an earlier commit and
       // says so beside its title" -- a subject-verb disagreement in the

@@ -155,9 +155,13 @@ jobs:
           What changed: [CHANGELOG.md](${repo_at_tag}/CHANGELOG.md).
           How the version was chosen: [versioning.md](${repo_at_tag}/docs/qualification/versioning.md).
 
-          butterfly is **not qualified** under DO-330. What that means, and what
-          qualification would take, is in
-          [the assessment](${repo_at_tag}/docs/qualification/DO-330-assessment.md).
+          butterfly is **not qualified** under DO-330: no DO-330 life-cycle data
+          exists for it today, and nothing in a release is a claim of
+          certification or compliance. It presents instruction-level evidence for
+          human review rather than performing the source-to-object review, and
+          \`butterfly build\` is excluded from any qualified tool set. The full
+          DO-330 assessment is maintained internally and is not published in this
+          repository.
           NOTES
           gh release create "${GITHUB_REF_NAME}" \
             --verify-tag \

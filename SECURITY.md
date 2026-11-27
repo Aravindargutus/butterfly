@@ -17,7 +17,7 @@ guarding changes what the endpoint fundamentally is.
 
 The concrete attack it would open, on the default configuration:
 
-`butterfly view` listens on loopback with no credentials, which is the right
+`butterfly serve` listens on loopback with no credentials, which is the right
 default for a local tool. `guard_host` rejects requests whose `Host` header is
 not a loopback name, which stops DNS rebinding — an attacker's domain
 resolving to `127.0.0.1`. It does **not** stop a page you happen to be

@@ -49,6 +49,7 @@ const crypto = require('node:crypto');
 const {spawnSync} = require('node:child_process');
 const {ROOT, load, matches, wantPattern, factKeys, CAPTURE_SCHEMA} = require('./spec.cjs');
 const {fixtureFacts, fill} = require('./facts.cjs');
+const {REPO} = require('./markup.cjs');
 const H = require(path.join(ROOT, 'ui/browser/harness.cjs'));
 
 const VIEWPORT = {width: 1460, height: 900};
@@ -91,6 +92,8 @@ function meta() {
   const dirty = (git('status', '--porcelain', '--', '.', ':!docs/showcase') || '')
     .split('\n').filter(l => l && !/ui\/browser\/node_modules$/.test(l));
   return {
+    // which repository that commit is in: the page links it there (#7)
+    repo: REPO,
     commit: git('rev-parse', 'HEAD'),
     commitShort: git('rev-parse', '--short=12', 'HEAD'),
     commitDate: git('show', '-s', '--format=%cI', 'HEAD'),
@@ -286,7 +289,7 @@ async function main() {
     // The commit this section was captured at. With `--only`, the rest of the
     // page comes from an earlier run at an earlier commit, and the lede and
     // the footer must not claim this one for all of it (#212 B5).
-    const rec = {commands: [], shots: [], commit: manifest.meta.commit, capturedAt: manifest.meta.capturedAt};
+    const rec = {commands: [], shots: [], repo: manifest.meta.repo, commit: manifest.meta.commit, capturedAt: manifest.meta.capturedAt};
     manifest.features[f.id] = rec;
     const broken = f.fixtures.find(n => !manifest.fixtures[n].ok);
     if (broken) { rec.notCaptured = `fixture \`${broken}\` could not be built: ${manifest.fixtures[broken].reason}`; continue; }
