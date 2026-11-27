@@ -487,15 +487,47 @@ fn base_name(p: &str) -> &str {
 /// each `..` against the component before it; a leading `..` that cannot be
 /// resolved marks where the comparable suffix begins, since nothing above it
 /// is known.
-/// The `-fstack-usage` frame for a symbol: the record for its own name, or --
-/// for a C++ ctor/dtor alias the linker folded onto another variant's address
-/// without a record of its own (Itanium C1/C2, D0/D1/D2) -- the record any
-/// symbol at the same address resolved. Same address means the same code, so
-/// the same frame; `su_by_addr` is built only from records resolved by name, so
-/// a genuinely unrecorded function at a lone address still returns None and is
-/// held to the missing-.su guard (#266 review).
-fn su_frame(su_map: &HashMap<String, (u64, bool)>, su_by_addr: &HashMap<u64, (u64, bool)>, dem: &str, cov_name: &str, addr: u64) -> Option<(u64, bool)> {
-    su_map.get(dem).or_else(|| su_map.get(cov_name)).or_else(|| su_by_addr.get(&addr)).copied()
+/// `.su` records by function name: each record's (file, bytes, dynamic).
+type SuByName = HashMap<String, Vec<(String, u64, bool)>>;
+
+fn su_by_name(records: Vec<stack::SuRecord>) -> SuByName {
+    let mut out = SuByName::new();
+    for r in records {
+        out.entry(r.name).or_default().push((r.file, r.bytes, r.dynamic));
+    }
+    out
+}
+
+/// The `.su` record for a symbol by its own name. `tu` is the file that
+/// defines the function the symbol was tied to: only a record that file
+/// wrote is this function's. Two functions can share a name -- a static in
+/// aux.c and an external in scale.c are both `scale` -- and with scale.c's
+/// record missing, aux.c's must not stand in for it (#10). Several records
+/// from one file (a header's `static inline`, written once by every unit that
+/// includes it) keep the conservative worst case. With no function to place
+/// the symbol, any record of the name serves, worst case first, as before.
+/// A record whose location names no file cannot be placed, so it is not
+/// ruled out.
+fn su_named(su: &SuByName, dem: &str, cov_name: &str, tu: Option<&str>) -> Option<(u64, bool)> {
+    let keys: &[&str] = if dem == cov_name { &[dem] } else { &[dem, cov_name] };
+    keys.iter()
+        .filter_map(|k| su.get(*k))
+        .flatten()
+        .filter(|(file, _, _)| tu.is_none_or(|t| file.is_empty() || same_tu(file, t)))
+        .map(|(_, b, d)| (*b, *d))
+        .reduce(|(b1, d1), (b2, d2)| (b1.max(b2), d1 || d2))
+}
+
+/// The `-fstack-usage` frame for a symbol: the record for its own name (see
+/// [`su_named`]), or -- for a C++ ctor/dtor alias the linker folded onto
+/// another variant's address without a record of its own (Itanium C1/C2,
+/// D0/D1/D2) -- the record any symbol at the same address resolved. Same
+/// address means the same code, so the same frame; `su_by_addr` is built only
+/// from records resolved by name, so a genuinely unrecorded function at a lone
+/// address still returns None and is held to the missing-.su guard (#266
+/// review).
+fn su_frame(su: &SuByName, su_by_addr: &HashMap<u64, (u64, bool)>, dem: &str, cov_name: &str, tu: Option<&str>, addr: u64) -> Option<(u64, bool)> {
+    su_named(su, dem, cov_name, tu).or_else(|| su_by_addr.get(&addr).copied())
 }
 
 fn same_tu(a: &str, b: &str) -> bool {
@@ -1183,13 +1215,13 @@ pub fn ingest(opts: &IngestOptions) -> Result<Evidence> {
     let mut image: Option<Image> = None;
     let mut measured: Option<Measured> = None;
     let mut measured_counts: Option<HashMap<u64, u64>> = None;
-    let mut su_entries: Vec<(String, u64, bool)> = Vec::new();
+    let mut su_entries: Vec<stack::SuRecord> = Vec::new();
     for su in &opts.stack_usage {
         let t = read_input(su, limits::Kind::Auxiliary, &lim, by_name(su, "--stack-usage"))?;
         inputs.push(artifact("stack-usage", su, t.as_bytes()));
-        su_entries.extend(stack::parse_su(&t));
+        su_entries.extend(stack::parse_su_records(&t));
     }
-    let su_map = stack::su_lookup(&su_entries);
+    let su_map = su_by_name(su_entries);
     if declared.as_ref().is_some_and(|d| !d.stack_usage) && !opts.stack_usage.is_empty() {
         caveats.push(format!(
             "{} .su file(s) were read, but build-info.txt records the analysis build's flags without -fstack-usage: the provenance does not describe the build that produced this stack evidence. Record the flags the build really used.",
@@ -1878,13 +1910,16 @@ pub fn ingest(opts: &IngestOptions) -> Result<Evidence> {
             // code, so a .su frame resolved for any symbol at an address serves
             // every symbol at that address (#266 review). This index is built
             // over the whole symbol table first, so the order symbols are
-            // visited in below does not matter.
+            // visited in below does not matter. Each symbol is placed in its
+            // own unit first, as below, so a same-named function's record
+            // elsewhere cannot fill an address either (#10).
+            let tu_of = |fid: Option<usize>| fid.map(|f| files[functions[f].file_id].path.as_str());
             let mut su_by_addr: HashMap<u64, (u64, bool)> = HashMap::new();
             for sym in &bin.symbols {
                 let cov_name = if is_macho { sym.name.strip_prefix('_').unwrap_or(&sym.name) } else { sym.name.as_str() };
                 let dem = demangle(cov_name);
-                if let Some((b, d)) = su_map.get(&dem).or_else(|| su_map.get(cov_name)) {
-                    su_by_addr.entry(sym.address).or_insert((*b, *d));
+                if let Some(frame) = su_named(&su_map, &dem, cov_name, tu_of(resolve_fn(&sym.name, Some(sym.address)).id())) {
+                    su_by_addr.entry(sym.address).or_insert(frame);
                 }
             }
             let mut nodes = Vec::new();
@@ -1945,7 +1980,7 @@ pub fn ingest(opts: &IngestOptions) -> Result<Evidence> {
                 callees.dedup();
                 let mut frame = if let Some(b) = stack_sizes.get(&sym.address) {
                     Frame { bytes: *b, source: FrameSource::StackSizesSection, dynamic: false }
-                } else if let Some((b, d)) = su_frame(&su_map, &su_by_addr, &dem, cov_name, sym.address) {
+                } else if let Some((b, d)) = su_frame(&su_map, &su_by_addr, &dem, cov_name, tu_of(function_id), sym.address) {
                     // The symbol's own .su record, or -- for a ctor/dtor alias
                     // with none of its own -- the same-address body's (#266).
                     Frame { bytes: b, source: FrameSource::StackUsageFile, dynamic: d }
@@ -3821,20 +3856,46 @@ mod tests {
         // The ELF #266 case: clang writes a .su record only for the base
         // variant, and the complete/deleting variant is folded to the same
         // address with no record of its own.
-        let mut su_map: HashMap<String, (u64, bool)> = HashMap::new();
-        su_map.insert("_ZN2fc7ChannelC2Ei".into(), (48, false)); // base ctor only
-                                                                 // built from the base ctor resolving by name at the folded address
+        // the base ctor's record only
+        let su_map = su_by_name(stack::parse_su_records("chan.cc:12:3:_ZN2fc7ChannelC2Ei\t48\tstatic\n"));
+        // built from the base ctor resolving by name at the folded address
         let mut su_by_addr: HashMap<u64, (u64, bool)> = HashMap::new();
         su_by_addr.insert(0x9e8, (48, false));
 
         // the complete ctor C1 aliases C2 at 0x9e8; both demangle alike but its
         // own mangled name has no record -- it inherits the body's frame
-        assert_eq!(su_frame(&su_map, &su_by_addr, "fc::Channel::Channel(int)", "_ZN2fc7ChannelC1Ei", 0x9e8), Some((48, false)));
+        assert_eq!(su_frame(&su_map, &su_by_addr, "fc::Channel::Channel(int)", "_ZN2fc7ChannelC1Ei", Some("/w/chan.cc"), 0x9e8), Some((48, false)));
         // the base ctor still resolves directly by name
-        assert_eq!(su_frame(&su_map, &su_by_addr, "fc::Channel::Channel(int)", "_ZN2fc7ChannelC2Ei", 0x9e8), Some((48, false)));
+        assert_eq!(su_frame(&su_map, &su_by_addr, "fc::Channel::Channel(int)", "_ZN2fc7ChannelC2Ei", Some("/w/chan.cc"), 0x9e8), Some((48, false)));
         // a genuinely unrecorded function at its own address is still missing --
         // the guard is not weakened
-        assert_eq!(su_frame(&su_map, &su_by_addr, "fc::Other::gone()", "_ZN2fc5Other4goneEv", 0x2000), None);
+        assert_eq!(su_frame(&su_map, &su_by_addr, "fc::Other::gone()", "_ZN2fc5Other4goneEv", Some("/w/chan.cc"), 0x2000), None);
+    }
+
+    /// #10: aux.c's static `scale` and scale.c's external `scale` share a
+    /// name. With scale.c's record gone, aux.c's must not answer for it.
+    #[test]
+    fn a_same_named_function_in_another_unit_does_not_supply_a_missing_su_record() {
+        let both = su_by_name(stack::parse_su_records("src/aux.c:9:scale\t16\tstatic\nsrc/scale.c:7:scale\t24\tdynamic\n"));
+        let none = HashMap::new();
+        assert_eq!(su_frame(&both, &none, "scale", "scale", Some("/w/src/aux.c"), 0x10), Some((16, false)), "each unit gets its own record");
+        assert_eq!(su_frame(&both, &none, "scale", "scale", Some("/w/src/scale.c"), 0x20), Some((24, true)));
+
+        let aux_only = su_by_name(stack::parse_su_records("src/aux.c:9:scale\t16\tstatic\n"));
+        assert_eq!(su_frame(&aux_only, &none, "scale", "scale", Some("/w/src/aux.c"), 0x10), Some((16, false)));
+        assert_eq!(su_frame(&aux_only, &none, "scale", "scale", Some("/w/src/scale.c"), 0x20), None, "aux.c's record is not scale.c's");
+        // the same file name in another directory is another unit
+        let alpha = su_by_name(stack::parse_su_records("src/alpha/dup.c:8:tally\t16\tstatic\n"));
+        assert_eq!(su_frame(&alpha, &none, "tally", "tally", Some("/w/src/beta/dup.c"), 0x30), None);
+        // a symbol tied to no function, or a record with no file, keeps the
+        // name-only worst case
+        assert_eq!(su_frame(&both, &none, "scale", "scale", None, 0x40), Some((24, true)));
+        let unplaced = su_by_name(stack::parse_su_records("scale\t8\tstatic\n"));
+        assert_eq!(su_frame(&unplaced, &none, "scale", "scale", Some("/w/src/scale.c"), 0x20), Some((8, false)));
+        // a header's static inline, recorded once per including unit, keeps
+        // the worst of its records
+        let header = su_by_name(stack::parse_su_records("inc/geom.h:15:geom_clamp\t16\tstatic\ninc/geom.h:15:geom_clamp\t32\tstatic\n"));
+        assert_eq!(su_frame(&header, &none, "geom_clamp", "geom_clamp", Some("/w/inc/geom.h"), 0x50), Some((32, false)));
     }
 
     #[test]

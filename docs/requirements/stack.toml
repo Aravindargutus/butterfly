@@ -1,0 +1,3 @@
+[BF-STACK-001]
+statement = "When build-info.txt declares -fstack-usage, ingest gives each analysed function only a .su record written by the file that defines it, or one at its own address. A same-named function's record from another translation unit does not satisfy a missing one, and ingest refuses the directory and names the function. When each function has its own record, ingest accepts the directory. Removing any one .su file from a shell adapter's output makes ingest refuse the directory."
+tests = ["crates/ingest/tests/build_mode_invariants.rs"]
