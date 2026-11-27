@@ -39,6 +39,22 @@ test('a pipe in the text cannot end a Markdown cell early', () => {
   assert.ok(md.includes('a \\| b') && md.includes('one \\| two'), md);
 });
 
+// What GitHub's renderer needs for each cell to read as written, checked
+// against it (CodeQL alert #1): a `|` is always `\|`; a backslash is doubled
+// in prose, where it would be a Markdown escape, and left alone in a code
+// span, where doubling it would show two.
+test('a backslash reads as itself in prose and in code spans', () => {
+  const md = markdown([{id: 'x.back\\slash|id', name: 'name a\\b|c', area: 'A', state: 'caveats',
+    caveat: 'prose a\\|b and `code a\\|b` and C:\\dir', example: 'ex\\ample', proof: 'p.rs::a\\b'}]);
+  const row = md.split('\n').find(l => l.startsWith('| name'));
+  assert.equal(row, '| name a\\\\b\\|c<br>`x.back\\slash\\|id` | Handled, with caveats | prose a\\\\\\|b and `code a\\\\|b` and C:\\\\dir | `ex\\ample` | `p.rs::a\\b` |');
+});
+
+test('a backtick run opens a code span only when one of the same length closes it', () => {
+  const md = markdown([{id: 'x.y', area: 'A', state: 'caveats', caveat: '``a`b\\c`` then a lone ` and d\\e'}]);
+  assert.ok(md.includes('``a`b\\c`` then a lone ` and d\\\\e'), md);
+});
+
 test('a file without exactly one marked block is refused, not appended to', () => {
   assert.throws(() => splice('no markers here', 'X', 'f.md'), /exactly one/);
   assert.throws(() => splice(`${OPEN}\n${CLOSE}\n${OPEN}\n${CLOSE}`, 'X', 'f.md'), /exactly one/);

@@ -41,8 +41,47 @@ function summary(rows) {
   return {total: rows.length, supported: n('supported'), caveats: n('caveats'), not: n('not-supported')};
 }
 
-/// A table cell: one line, and a `|` that cannot end the cell early.
-const cell = s => String(s || '').replace(/\s*\n\s*/g, ' ').replace(/\|/g, '\\|').trim();
+/// A table cell: one line, a `|` that cannot end the cell early, and a
+/// backslash that reads as itself.
+///
+/// GitHub's table parser drops one backslash before each `|` and only then
+/// parses the cell as Markdown, so every `|` is written `\|`. After that, a
+/// backslash outside a code span is a Markdown escape, so it is doubled; inside
+/// a code span it is literal, and doubling it there would show two. Checked
+/// against GitHub's renderer: `a\|b` as text needs `a\\\|b`, and `` `a\|b` ``
+/// needs only `` `a\\|b` `` (CodeQL alert #1). A backtick run opens a code span
+/// only if a run of the same length closes it, as in CommonMark.
+function cell(s) {
+  const text = String(s || '').replace(/\s*\n\s*/g, ' ').trim();
+  const out = [];
+  let codeEnd = -1;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (c === '`' && i > codeEnd) {
+      let j = i;
+      while (text[j] === '`') j++;
+      const run = j - i;
+      let k = j;
+      for (;;) {
+        k = text.indexOf('`'.repeat(run), k);
+        if (k < 0 || (text[k - 1] !== '`' && text[k + run] !== '`')) break;
+        while (text[k] === '`') k++;
+      }
+      out.push(text.slice(i, j));
+      if (k >= 0) codeEnd = k + run - 1;
+      i = j - 1;
+    } else if (c === '`') {
+      out.push(c);
+    } else if (c === '|') {
+      out.push('\\|');
+    } else if (c === '\\' && i > codeEnd) {
+      out.push('\\\\');
+    } else {
+      out.push(c);
+    }
+  }
+  return out.join('');
+}
 
 function markdown(rows) {
   const s = summary(rows);
@@ -57,9 +96,12 @@ function markdown(rows) {
     out.push('| what | state | caveat, or why it is not supported | example | proof |');
     out.push('|---|---|---|---|---|');
     for (const r of inArea) {
-      const what = `${cell(r.name || r.id)}<br>\`${cell(r.id)}\``;
+      // id, example and proof are code spans: wrapped before escaping, so
+      // cell() leaves their backslashes as they are
+      const code = v => cell(`\`${v}\``);
+      const what = `${cell(r.name || r.id)}<br>${code(r.id)}`;
       const why = cell(r.caveat || r.reason) + (tracking(r).length ? ` Tracked in ${tracking(r).map(n => `#${n}`).join(', ')}.` : '');
-      out.push(`| ${what} | ${LABEL[r.state] || r.state} | ${why} | ${r.example ? `\`${cell(r.example)}\`` : '—'} | ${r.proof ? `\`${cell(r.proof)}\`` : ''} |`);
+      out.push(`| ${what} | ${LABEL[r.state] || r.state} | ${why} | ${r.example ? code(r.example) : '—'} | ${r.proof ? code(r.proof) : ''} |`);
     }
     out.push('');
     out.push('</details>');
@@ -128,4 +170,4 @@ if (require.main === module) {
   if (!check) console.log('matrix-docs: README.md and docs/butterfly.html are in step with support/matrix.toml');
 }
 
-module.exports = {markdown, html, splice, run, OPEN, CLOSE};
+module.exports = {markdown, html, splice, run, cell, OPEN, CLOSE};
