@@ -200,15 +200,88 @@ fn every_shell_adapter_records_its_compiler_and_is_held_to_its_stack_usage() {
         let d = butterfly_testsupport::scratch_dir(&format!("modes-each-{example}-{out}"));
         copy_tree(&build, &d);
         ingest(&root, &d).unwrap_or_else(|e| panic!("{name}: the example as built must be accepted: {e}"));
-        let sus: Vec<PathBuf> = fs::read_dir(&d).unwrap().flatten().map(|e| e.path()).filter(|p| p.extension().is_some_and(|x| x == "su")).collect();
+        let mut sus: Vec<PathBuf> = fs::read_dir(&d).unwrap().flatten().map(|e| e.path()).filter(|p| p.extension().is_some_and(|x| x == "su")).collect();
+        // Every one, in a fixed order: directory order once picked a
+        // different file per run, and only some of them exposed #10.
+        sus.sort();
         if field("flags_target").split_whitespace().any(|f| f == "-fstack-usage") {
             assert!(!sus.is_empty(), "{name}: declares -fstack-usage and delivered no .su");
-            fs::remove_file(&sus[0]).unwrap();
-            let e = ingest(&root, &d).expect_err(&format!("{name}: accepted with {} removed", sus[0].display())).to_string();
-            assert!(e.contains("-fstack-usage"), "{name}: refused for the missing .su: {e}");
+            for su in &sus {
+                let aside = su.with_extension("su-removed");
+                fs::rename(su, &aside).unwrap();
+                let e = ingest(&root, &d).expect_err(&format!("{name}: accepted with {} removed", su.display())).to_string();
+                assert!(e.contains("-fstack-usage"), "{name}: refused for the missing {}: {e}", su.display());
+                fs::rename(&aside, su).unwrap();
+            }
         } else {
             assert!(sus.is_empty(), "{name}: writes .su files its build-info does not declare");
         }
         let _ = fs::remove_dir_all(d);
     }
+}
+
+/// #10: c-header-inline has two functions named `scale` -- a static in aux.c
+/// and an external in scale.c. With scale.c's `.su` gone and aux.c's kept,
+/// aux.c's record once answered for both, and ingest read a compiler-stated
+/// frame for a function the build left unrecorded. Named outright, so
+/// directory order cannot pick another file.
+#[test]
+fn a_same_named_functions_su_record_does_not_cover_a_missing_one() {
+    let examples = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../examples").canonicalize().unwrap();
+    let root = examples.join("c-header-inline");
+    let build = root.join("build");
+    if !build.join("build-info.txt").exists() {
+        butterfly_testsupport::fixture_missing("run examples/c-header-inline/build.sh first");
+        return;
+    }
+    let d = butterfly_testsupport::scratch_dir("modes-same-name-su");
+    copy_tree(&build, &d);
+    assert!(d.join("src_aux.su").is_file() && d.join("src_scale.su").is_file(), "the fixture writes one .su per unit");
+    ingest(&root, &d).unwrap_or_else(|e| panic!("the intact fixture must be accepted: {e}"));
+    fs::remove_file(d.join("src_scale.su")).unwrap();
+    let e = ingest(&root, &d).expect_err("accepted with src_scale.su removed and src_aux.su kept").to_string();
+    assert!(e.contains("-fstack-usage") && e.contains("no stack-usage record: scale."), "names scale as the function with no record: {e}");
+    let _ = fs::remove_dir_all(d);
+}
+
+/// A `.su` record names the file that defines a function, not the unit that
+/// emitted it. Each case below leaves a record in place that names the right
+/// function and file but cannot be the missing unit's own (#11 review).
+#[test]
+fn a_su_record_that_cannot_be_the_units_own_does_not_cover_it() {
+    let examples = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../examples").canonicalize().unwrap();
+    let root = examples.join("c-header-inline");
+    let build = root.join("build");
+    if !build.join("build-info.txt").exists() {
+        butterfly_testsupport::fixture_missing("run examples/c-header-inline/build.sh first");
+        return;
+    }
+    let rewrite = |d: &PathBuf, file: &str, edit: &dyn Fn(&str) -> Option<String>| {
+        let p = d.join(file);
+        let text: String = fs::read_to_string(&p).unwrap().lines().filter_map(edit).map(|l| l + "\n").collect();
+        fs::write(&p, text).unwrap();
+    };
+
+    // geom.c and main.c each emit a copy of the header's static inline
+    // geom_clamp, and both records name inc/geom.h. Drop main.c's: geom.c's
+    // record must not cover main.c's copy, as it would for a unit whose .su
+    // held only header functions.
+    let d = butterfly_testsupport::scratch_dir("modes-su-header-copy");
+    copy_tree(&build, &d);
+    rewrite(&d, "src_main.su", &|l| (!l.contains("geom_clamp")).then(|| l.to_string()));
+    let e = ingest(&root, &d).expect_err("accepted with main.c's geom_clamp record removed").to_string();
+    assert!(e.contains("-fstack-usage") && e.contains("geom_clamp"), "names geom_clamp: {e}");
+    let _ = fs::remove_dir_all(d);
+
+    // GCC writes the path it was given, so a unit compiled from its own
+    // directory names a bare `dup.c` -- which matches src/alpha/dup.c and
+    // src/beta/dup.c alike. Records that cannot be told apart prove neither.
+    let d = butterfly_testsupport::scratch_dir("modes-su-bare-basename");
+    copy_tree(&build, &d);
+    for f in ["src_alpha_dup.su", "src_beta_dup.su"] {
+        rewrite(&d, f, &|l| Some(l.replace("src/alpha/dup.c", "dup.c").replace("src/beta/dup.c", "dup.c")));
+    }
+    let e = ingest(&root, &d).expect_err("accepted with bare dup.c records").to_string();
+    assert!(e.contains("-fstack-usage") && e.contains("tally"), "names tally: {e}");
+    let _ = fs::remove_dir_all(d);
 }
