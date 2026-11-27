@@ -551,8 +551,11 @@ fn place_su(su: &SuByName, slots: &[SuSlot]) -> HashMap<u64, (u64, bool)> {
     for (key, addrs) in &needs {
         let Some(recs) = assigned.get(key).filter(|r| r.len() >= addrs.len()) else { continue };
         let frame = recs.iter().copied().reduce(worst).expect("at least one address, so one record");
+        // Two differently-named functions folded onto one address (ICF) are
+        // one body: keep the worst of their frames rather than whichever
+        // name came last.
         for a in addrs {
-            out.insert(*a, frame);
+            out.entry(*a).and_modify(|cur| *cur = worst(*cur, frame)).or_insert(frame);
         }
     }
     out
@@ -3935,6 +3938,21 @@ mod tests {
         assert_eq!(placed.get(&0x9e8), Some(&(48, false)), "one address, one record: both variants have it");
         // a genuinely unrecorded function at its own address is still missing
         assert_eq!(placed.get(&0x2000), None);
+    }
+
+    /// Two differently-named functions the linker folded onto one address
+    /// (ICF) are one body: the address keeps the worst of their frames,
+    /// whichever name is placed last.
+    #[test]
+    fn functions_folded_onto_one_address_keep_the_worst_frame() {
+        let slots = [slot(0x70, "a", "/w/a.c"), slot(0x70, "b", "/w/b.c")];
+        for (text, want) in [
+            ("a.c:1:a\t16\tstatic\nb.c:1:b\t32\tdynamic\n", (32, true)),
+            ("a.c:1:a\t32\tdynamic\nb.c:1:b\t16\tstatic\n", (32, true)),
+            ("a.c:1:a\t48\tstatic\nb.c:1:b\t16\tdynamic\n", (48, true)),
+        ] {
+            assert_eq!(place_su(&su_by_name(stack::parse_su_records(text)), &slots).get(&0x70), Some(&want), "{text:?}");
+        }
     }
 
     /// #10: aux.c's static `scale` and scale.c's external `scale` share a
