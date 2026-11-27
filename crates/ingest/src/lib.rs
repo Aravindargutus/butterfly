@@ -468,6 +468,96 @@ fn base_name(p: &str) -> &str {
     p.rsplit(['/', '\\']).next().unwrap_or(p)
 }
 
+/// `.su` records by function name: each record's (file, bytes, dynamic).
+type SuByName = HashMap<String, Vec<(String, u64, bool)>>;
+
+fn su_by_name(records: Vec<stack::SuRecord>) -> SuByName {
+    let mut out = SuByName::new();
+    for r in records {
+        out.entry(r.name).or_default().push((r.file, r.bytes, r.dynamic));
+    }
+    out
+}
+
+/// The `.su` record for a symbol tied to no coverage function: any record
+/// of its name, worst case first. Nothing here is held to the missing-.su
+/// guard, so a guess cannot hide a missing record.
+fn su_unplaced(su: &SuByName, dem: &str, cov_name: &str) -> Option<(u64, bool)> {
+    let keys: &[&str] = if dem == cov_name { &[dem] } else { &[dem, cov_name] };
+    keys.iter().filter_map(|k| su.get(*k)).flatten().map(|(_, b, d)| (*b, *d)).reduce(worst)
+}
+
+fn worst((b1, d1): (u64, bool), (b2, d2): (u64, bool)) -> (u64, bool) {
+    (b1.max(b2), d1 || d2)
+}
+
+/// An analysed symbol the `.su` records must account for: its address, its
+/// two names, and the file that defines the coverage function it was tied
+/// to -- or, for a copy tied to none (llvm-cov keeps one of two same-named
+/// statics), the unit the DWARF says emitted it. That copy is not held to
+/// the missing-.su guard, but its unit is still a file a record could name,
+/// so a record that also matches it is ambiguous.
+struct SuSlot<'a> {
+    addr: u64,
+    dem: &'a str,
+    cov_name: &'a str,
+    tu: &'a str,
+}
+
+/// The `-fstack-usage` frame at each analysed address whose records are all
+/// present (#10). An address with none here has no stated frame of its own.
+///
+/// A record names the file that *defines* the function, not the unit that
+/// emitted it, so two checks stand in for the emitting unit:
+///
+/// - A record is assigned to a defining file only when its path picks out
+///   exactly one of the files that define a function of its name. A bare
+///   `dup.c` matches both `src/alpha/dup.c` and `src/beta/dup.c`, and an
+///   ambiguous record satisfies neither, as `resolve_fn` never guesses a unit.
+/// - Every emitting unit writes one record per copy it emits, so a function
+///   needs at least as many assigned records as it has distinct addresses. A
+///   header's `static inline` compiled into geom.c and main.c is two copies
+///   naming one header: with main.c's `.su` gone -- even a `.su` holding only
+///   header functions -- geom.c's record no longer covers both.
+///
+/// The count cannot tell which copy's record is the missing one, so every
+/// copy of a short function is refused. Several records for one copy (a
+/// C++ inline the linker folded) keep the worst case. A C++ ctor/dtor alias
+/// with no record of its own shares its address with the variant that has
+/// one, so the address carries the frame for both (#266 review).
+fn place_su(su: &SuByName, slots: &[SuSlot]) -> HashMap<u64, (u64, bool)> {
+    // (record name, defining file) -> the distinct addresses that need it
+    let mut needs: BTreeMap<(&str, &str), BTreeSet<u64>> = BTreeMap::new();
+    for s in slots {
+        let key = if su.contains_key(s.dem) { s.dem } else { s.cov_name };
+        if su.contains_key(key) {
+            needs.entry((key, s.tu)).or_default().insert(s.addr);
+        }
+    }
+    let mut files_of: BTreeMap<&str, Vec<&str>> = BTreeMap::new();
+    for (name, tu) in needs.keys() {
+        files_of.entry(name).or_default().push(tu);
+    }
+    let mut assigned: HashMap<(&str, &str), Vec<(u64, bool)>> = HashMap::new();
+    for (name, tus) in &files_of {
+        for (file, b, d) in &su[*name] {
+            let mut hits = tus.iter().filter(|t| file.is_empty() || same_tu(file, t));
+            if let (Some(tu), None) = (hits.next(), hits.next()) {
+                assigned.entry((name, tu)).or_default().push((*b, *d));
+            }
+        }
+    }
+    let mut out = HashMap::new();
+    for (key, addrs) in &needs {
+        let Some(recs) = assigned.get(key).filter(|r| r.len() >= addrs.len()) else { continue };
+        let frame = recs.iter().copied().reduce(worst).expect("at least one address, so one record");
+        for a in addrs {
+            out.insert(*a, frame);
+        }
+    }
+    out
+}
+
 /// Do two paths name the same translation unit?
 ///
 /// llvm-cov's qualifier and the DWARF unit's name are both source paths but
@@ -487,49 +577,6 @@ fn base_name(p: &str) -> &str {
 /// each `..` against the component before it; a leading `..` that cannot be
 /// resolved marks where the comparable suffix begins, since nothing above it
 /// is known.
-/// `.su` records by function name: each record's (file, bytes, dynamic).
-type SuByName = HashMap<String, Vec<(String, u64, bool)>>;
-
-fn su_by_name(records: Vec<stack::SuRecord>) -> SuByName {
-    let mut out = SuByName::new();
-    for r in records {
-        out.entry(r.name).or_default().push((r.file, r.bytes, r.dynamic));
-    }
-    out
-}
-
-/// The `.su` record for a symbol by its own name. `tu` is the file that
-/// defines the function the symbol was tied to: only a record that file
-/// wrote is this function's. Two functions can share a name -- a static in
-/// aux.c and an external in scale.c are both `scale` -- and with scale.c's
-/// record missing, aux.c's must not stand in for it (#10). Several records
-/// from one file (a header's `static inline`, written once by every unit that
-/// includes it) keep the conservative worst case. With no function to place
-/// the symbol, any record of the name serves, worst case first, as before.
-/// A record whose location names no file cannot be placed, so it is not
-/// ruled out.
-fn su_named(su: &SuByName, dem: &str, cov_name: &str, tu: Option<&str>) -> Option<(u64, bool)> {
-    let keys: &[&str] = if dem == cov_name { &[dem] } else { &[dem, cov_name] };
-    keys.iter()
-        .filter_map(|k| su.get(*k))
-        .flatten()
-        .filter(|(file, _, _)| tu.is_none_or(|t| file.is_empty() || same_tu(file, t)))
-        .map(|(_, b, d)| (*b, *d))
-        .reduce(|(b1, d1), (b2, d2)| (b1.max(b2), d1 || d2))
-}
-
-/// The `-fstack-usage` frame for a symbol: the record for its own name (see
-/// [`su_named`]), or -- for a C++ ctor/dtor alias the linker folded onto
-/// another variant's address without a record of its own (Itanium C1/C2,
-/// D0/D1/D2) -- the record any symbol at the same address resolved. Same
-/// address means the same code, so the same frame; `su_by_addr` is built only
-/// from records resolved by name, so a genuinely unrecorded function at a lone
-/// address still returns None and is held to the missing-.su guard (#266
-/// review).
-fn su_frame(su: &SuByName, su_by_addr: &HashMap<u64, (u64, bool)>, dem: &str, cov_name: &str, tu: Option<&str>, addr: u64) -> Option<(u64, bool)> {
-    su_named(su, dem, cov_name, tu).or_else(|| su_by_addr.get(&addr).copied())
-}
-
 fn same_tu(a: &str, b: &str) -> bool {
     // Normalise, then keep only the components after any unresolved leading
     // `..` -- that trailing run is the part of the path we can actually
@@ -1910,18 +1957,33 @@ pub fn ingest(opts: &IngestOptions) -> Result<Evidence> {
             // code, so a .su frame resolved for any symbol at an address serves
             // every symbol at that address (#266 review). This index is built
             // over the whole symbol table first, so the order symbols are
-            // visited in below does not matter. Each symbol is placed in its
-            // own unit first, as below, so a same-named function's record
-            // elsewhere cannot fill an address either (#10).
-            let tu_of = |fid: Option<usize>| fid.map(|f| files[functions[f].file_id].path.as_str());
-            let mut su_by_addr: HashMap<u64, (u64, bool)> = HashMap::new();
-            for sym in &bin.symbols {
-                let cov_name = if is_macho { sym.name.strip_prefix('_').unwrap_or(&sym.name) } else { sym.name.as_str() };
-                let dem = demangle(cov_name);
-                if let Some(frame) = su_named(&su_map, &dem, cov_name, tu_of(resolve_fn(&sym.name, Some(sym.address)).id())) {
-                    su_by_addr.entry(sym.address).or_insert(frame);
-                }
-            }
+            // visited in below does not matter. Records are placed against
+            // every analysed symbol at once, so another unit's record for a
+            // same-named function cannot fill an address either (#10).
+            let names: Vec<(String, String)> = bin
+                .symbols
+                .iter()
+                .map(|sym| {
+                    let cov_name = if is_macho { sym.name.strip_prefix('_').unwrap_or(&sym.name) } else { sym.name.as_str() };
+                    (demangle(cov_name), cov_name.to_string())
+                })
+                .collect();
+            let slots: Vec<SuSlot> = bin
+                .symbols
+                .iter()
+                .zip(&names)
+                .filter(|(sym, _)| !bin.instrs_in(sym.address, sym.address.saturating_add(sym.size)).is_empty())
+                .filter_map(|(sym, (dem, cov_name))| {
+                    // a copy tied to no coverage function still has a unit
+                    // that emitted it, which a record's path may also match
+                    let tu = match resolve_fn(&sym.name, Some(sym.address)).id() {
+                        Some(fid) => files[functions[fid].file_id].path.as_str(),
+                        None => bin.tu_of(sym.address)?,
+                    };
+                    Some(SuSlot { addr: sym.address, dem, cov_name, tu })
+                })
+                .collect();
+            let su_by_addr = place_su(&su_map, &slots);
             let mut nodes = Vec::new();
             let mut attribution_findings: Vec<String> = Vec::new();
             for (i, sym) in bin.symbols.iter().enumerate() {
@@ -1980,9 +2042,10 @@ pub fn ingest(opts: &IngestOptions) -> Result<Evidence> {
                 callees.dedup();
                 let mut frame = if let Some(b) = stack_sizes.get(&sym.address) {
                     Frame { bytes: *b, source: FrameSource::StackSizesSection, dynamic: false }
-                } else if let Some((b, d)) = su_frame(&su_map, &su_by_addr, &dem, cov_name, tu_of(function_id), sym.address) {
-                    // The symbol's own .su record, or -- for a ctor/dtor alias
-                    // with none of its own -- the same-address body's (#266).
+                } else if let Some((b, d)) = su_by_addr.get(&sym.address).copied().or_else(|| function_id.is_none().then(|| su_unplaced(&su_map, &dem, cov_name)).flatten()) {
+                    // The records placed at this address (`place_su`), which a
+                    // ctor/dtor alias shares with its recorded variant (#266);
+                    // or, for a symbol tied to no function, any of its name.
                     Frame { bytes: b, source: FrameSource::StackUsageFile, dynamic: d }
                 } else if raw.is_empty() {
                     Frame::default()
@@ -3851,51 +3914,86 @@ mod tests {
         none(vec![blk(0, &[10], Some(InstrFlag::Branch), &[(1, EdgeKind::Jump)], &counts), blk(1, &[99], None, &[], &counts)], &[], "unknown");
     }
 
+    fn slot<'a>(addr: u64, name: &'a str, tu: &'a str) -> SuSlot<'a> {
+        SuSlot { addr, dem: name, cov_name: name, tu }
+    }
+
     #[test]
     fn a_ctor_dtor_alias_inherits_the_same_address_body_su_record() {
         // The ELF #266 case: clang writes a .su record only for the base
-        // variant, and the complete/deleting variant is folded to the same
-        // address with no record of its own.
-        // the base ctor's record only
-        let su_map = su_by_name(stack::parse_su_records("chan.cc:12:3:_ZN2fc7ChannelC2Ei\t48\tstatic\n"));
-        // built from the base ctor resolving by name at the folded address
-        let mut su_by_addr: HashMap<u64, (u64, bool)> = HashMap::new();
-        su_by_addr.insert(0x9e8, (48, false));
-
-        // the complete ctor C1 aliases C2 at 0x9e8; both demangle alike but its
-        // own mangled name has no record -- it inherits the body's frame
-        assert_eq!(su_frame(&su_map, &su_by_addr, "fc::Channel::Channel(int)", "_ZN2fc7ChannelC1Ei", Some("/w/chan.cc"), 0x9e8), Some((48, false)));
-        // the base ctor still resolves directly by name
-        assert_eq!(su_frame(&su_map, &su_by_addr, "fc::Channel::Channel(int)", "_ZN2fc7ChannelC2Ei", Some("/w/chan.cc"), 0x9e8), Some((48, false)));
-        // a genuinely unrecorded function at its own address is still missing --
-        // the guard is not weakened
-        assert_eq!(su_frame(&su_map, &su_by_addr, "fc::Other::gone()", "_ZN2fc5Other4goneEv", Some("/w/chan.cc"), 0x2000), None);
+        // variant, and the complete variant C1 is folded to the same address
+        // with no record of its own. Both demangle alike, so C1 finds no
+        // record by name; the address carries the base variant's frame.
+        let su = su_by_name(stack::parse_su_records("chan.cc:12:3:_ZN2fc7ChannelC2Ei\t48\tstatic\n"));
+        let dem = "fc::Channel::Channel(int)";
+        let slots = [
+            SuSlot { addr: 0x9e8, dem, cov_name: "_ZN2fc7ChannelC2Ei", tu: "/w/chan.cc" },
+            SuSlot { addr: 0x9e8, dem, cov_name: "_ZN2fc7ChannelC1Ei", tu: "/w/chan.cc" },
+            SuSlot { addr: 0x2000, dem: "fc::Other::gone()", cov_name: "_ZN2fc5Other4goneEv", tu: "/w/chan.cc" },
+        ];
+        let placed = place_su(&su, &slots);
+        assert_eq!(placed.get(&0x9e8), Some(&(48, false)), "one address, one record: both variants have it");
+        // a genuinely unrecorded function at its own address is still missing
+        assert_eq!(placed.get(&0x2000), None);
     }
 
     /// #10: aux.c's static `scale` and scale.c's external `scale` share a
     /// name. With scale.c's record gone, aux.c's must not answer for it.
     #[test]
     fn a_same_named_function_in_another_unit_does_not_supply_a_missing_su_record() {
+        let slots = [slot(0x10, "scale", "/w/src/aux.c"), slot(0x20, "scale", "/w/src/scale.c")];
         let both = su_by_name(stack::parse_su_records("src/aux.c:9:scale\t16\tstatic\nsrc/scale.c:7:scale\t24\tdynamic\n"));
-        let none = HashMap::new();
-        assert_eq!(su_frame(&both, &none, "scale", "scale", Some("/w/src/aux.c"), 0x10), Some((16, false)), "each unit gets its own record");
-        assert_eq!(su_frame(&both, &none, "scale", "scale", Some("/w/src/scale.c"), 0x20), Some((24, true)));
+        let placed = place_su(&both, &slots);
+        assert_eq!((placed.get(&0x10), placed.get(&0x20)), (Some(&(16, false)), Some(&(24, true))), "each unit gets its own record");
 
         let aux_only = su_by_name(stack::parse_su_records("src/aux.c:9:scale\t16\tstatic\n"));
-        assert_eq!(su_frame(&aux_only, &none, "scale", "scale", Some("/w/src/aux.c"), 0x10), Some((16, false)));
-        assert_eq!(su_frame(&aux_only, &none, "scale", "scale", Some("/w/src/scale.c"), 0x20), None, "aux.c's record is not scale.c's");
-        // the same file name in another directory is another unit
-        let alpha = su_by_name(stack::parse_su_records("src/alpha/dup.c:8:tally\t16\tstatic\n"));
-        assert_eq!(su_frame(&alpha, &none, "tally", "tally", Some("/w/src/beta/dup.c"), 0x30), None);
-        // a symbol tied to no function, or a record with no file, keeps the
-        // name-only worst case
-        assert_eq!(su_frame(&both, &none, "scale", "scale", None, 0x40), Some((24, true)));
+        let placed = place_su(&aux_only, &slots);
+        assert_eq!(placed.get(&0x10), Some(&(16, false)));
+        assert_eq!(placed.get(&0x20), None, "aux.c's record is not scale.c's");
+
+        // a symbol tied to no function keeps the name-only worst case
+        assert_eq!(su_unplaced(&both, "scale", "scale"), Some((24, true)));
+        // a record with no file still serves the one function of its name
         let unplaced = su_by_name(stack::parse_su_records("scale\t8\tstatic\n"));
-        assert_eq!(su_frame(&unplaced, &none, "scale", "scale", Some("/w/src/scale.c"), 0x20), Some((8, false)));
-        // a header's static inline, recorded once per including unit, keeps
-        // the worst of its records
-        let header = su_by_name(stack::parse_su_records("inc/geom.h:15:geom_clamp\t16\tstatic\ninc/geom.h:15:geom_clamp\t32\tstatic\n"));
-        assert_eq!(su_frame(&header, &none, "geom_clamp", "geom_clamp", Some("/w/inc/geom.h"), 0x50), Some((32, false)));
+        assert_eq!(place_su(&unplaced, &slots[1..]).get(&0x20), Some(&(8, false)));
+        assert_eq!(place_su(&unplaced, &slots).get(&0x20), None, "but not one of two");
+    }
+
+    /// #11 review: a record names only the file that defines the function.
+    /// GCC writes the path it was given, so a unit compiled from its own
+    /// directory names a bare `dup.c`, which matches two units.
+    #[test]
+    fn an_ambiguous_su_record_satisfies_neither_unit() {
+        let slots = [slot(0x30, "tally", "/w/src/alpha/dup.c"), slot(0x40, "tally", "/w/src/beta/dup.c")];
+        let bare = su_by_name(stack::parse_su_records("dup.c:8:1:tally\t16\tstatic\n"));
+        assert!(place_su(&bare, &slots).is_empty(), "one bare record cannot cover either unit");
+        let bare_both = su_by_name(stack::parse_su_records("dup.c:8:1:tally\t16\tstatic\ndup.c:6:1:tally\t16\tstatic\n"));
+        assert!(place_su(&bare_both, &slots).is_empty(), "nor two that cannot be told apart");
+        // a qualified record still picks out its own unit
+        let alpha = su_by_name(stack::parse_su_records("src/alpha/dup.c:8:tally\t16\tstatic\n"));
+        let placed = place_su(&alpha, &slots);
+        assert_eq!((placed.get(&0x30), placed.get(&0x40)), (Some(&(16, false)), None));
+        // and with one function of the name, a bare record is unambiguous
+        assert_eq!(place_su(&bare, &slots[..1]).get(&0x30), Some(&(16, false)));
+        // a copy tied to no coverage function stands for its DWARF unit, so
+        // the bare record is ambiguous against it too
+        let with_unplaced = [slot(0x30, "tally", "/w/src/alpha/dup.c"), slot(0x40, "tally", "src/beta/dup.c")];
+        assert!(place_su(&bare_both, &with_unplaced).is_empty());
+    }
+
+    /// #11 review: a header's static inline is one defining file for every
+    /// unit that emits a copy. Each copy needs its own unit's record, so a
+    /// unit whose .su holds only header functions is still missed.
+    #[test]
+    fn each_copy_of_a_header_function_needs_its_own_record() {
+        let slots = [slot(0x50, "geom_clamp", "/w/inc/geom.h"), slot(0x60, "geom_clamp", "/w/inc/geom.h")];
+        let two = su_by_name(stack::parse_su_records("inc/geom.h:15:geom_clamp\t16\tstatic\ninc/geom.h:15:geom_clamp\t32\tstatic\n"));
+        let placed = place_su(&two, &slots);
+        assert_eq!((placed.get(&0x50), placed.get(&0x60)), (Some(&(32, false)), Some(&(32, false))), "both present: the worst of them");
+        let one = su_by_name(stack::parse_su_records("inc/geom.h:15:geom_clamp\t16\tstatic\n"));
+        assert!(place_su(&one, &slots).is_empty(), "two copies, one record: a unit's record is missing");
+        // a C++ inline the linker folded to one copy keeps every unit's record
+        assert_eq!(place_su(&two, &slots[..1]).get(&0x50), Some(&(32, false)));
     }
 
     #[test]

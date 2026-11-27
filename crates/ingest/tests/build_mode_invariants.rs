@@ -243,3 +243,45 @@ fn a_same_named_functions_su_record_does_not_cover_a_missing_one() {
     assert!(e.contains("-fstack-usage") && e.contains("no stack-usage record: scale."), "names scale as the function with no record: {e}");
     let _ = fs::remove_dir_all(d);
 }
+
+/// A `.su` record names the file that defines a function, not the unit that
+/// emitted it. Each case below leaves a record in place that names the right
+/// function and file but cannot be the missing unit's own (#11 review).
+#[test]
+fn a_su_record_that_cannot_be_the_units_own_does_not_cover_it() {
+    let examples = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../examples").canonicalize().unwrap();
+    let root = examples.join("c-header-inline");
+    let build = root.join("build");
+    if !build.join("build-info.txt").exists() {
+        butterfly_testsupport::fixture_missing("run examples/c-header-inline/build.sh first");
+        return;
+    }
+    let rewrite = |d: &PathBuf, file: &str, edit: &dyn Fn(&str) -> Option<String>| {
+        let p = d.join(file);
+        let text: String = fs::read_to_string(&p).unwrap().lines().filter_map(edit).map(|l| l + "\n").collect();
+        fs::write(&p, text).unwrap();
+    };
+
+    // geom.c and main.c each emit a copy of the header's static inline
+    // geom_clamp, and both records name inc/geom.h. Drop main.c's: geom.c's
+    // record must not cover main.c's copy, as it would for a unit whose .su
+    // held only header functions.
+    let d = butterfly_testsupport::scratch_dir("modes-su-header-copy");
+    copy_tree(&build, &d);
+    rewrite(&d, "src_main.su", &|l| (!l.contains("geom_clamp")).then(|| l.to_string()));
+    let e = ingest(&root, &d).expect_err("accepted with main.c's geom_clamp record removed").to_string();
+    assert!(e.contains("-fstack-usage") && e.contains("geom_clamp"), "names geom_clamp: {e}");
+    let _ = fs::remove_dir_all(d);
+
+    // GCC writes the path it was given, so a unit compiled from its own
+    // directory names a bare `dup.c` -- which matches src/alpha/dup.c and
+    // src/beta/dup.c alike. Records that cannot be told apart prove neither.
+    let d = butterfly_testsupport::scratch_dir("modes-su-bare-basename");
+    copy_tree(&build, &d);
+    for f in ["src_alpha_dup.su", "src_beta_dup.su"] {
+        rewrite(&d, f, &|l| Some(l.replace("src/alpha/dup.c", "dup.c").replace("src/beta/dup.c", "dup.c")));
+    }
+    let e = ingest(&root, &d).expect_err("accepted with bare dup.c records").to_string();
+    assert!(e.contains("-fstack-usage") && e.contains("tally"), "names tally: {e}");
+    let _ = fs::remove_dir_all(d);
+}
