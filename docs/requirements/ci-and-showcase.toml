@@ -5,3 +5,7 @@ tests = ["crates/ingest/tests/ci_budget.rs"]
 [BF-SHOWCASE-001]
 statement = "The showcase builder shall resolve the landing table's commit link repository from the same record as its commit, falling back to the historical repository for legacy captures without a recorded repo, and shall state the public qualification position without linking to the unpublished internal DO-330 assessment."
 tests = ["ui/showcase_build.test.cjs"]
+
+[BF-DOCS-001]
+statement = "The README support-matrix table shall render every cell as written on GitHub: a pipe shall not end a cell early, and a backslash shall appear as itself both in prose and inside code spans, and nothing in a row's name shall change how the row's id renders in the same cell."
+tests = ["ui/matrix_docs.test.cjs"]
