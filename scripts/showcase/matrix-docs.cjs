@@ -83,6 +83,20 @@ function cell(s) {
   return out.join('');
 }
 
+/// The row's id, set apart from the name before it in the same cell.
+///
+/// GitHub parses a finished cell as one inline string, so a backtick in the
+/// name could pair with a backtick that opened the id's code span, across the
+/// `<br>`, and the id would lose its code formatting (PR #9 review). An HTML
+/// `<code>` element opens with no backtick for the name to pair with. Its text
+/// is still parsed as Markdown, so every character Markdown or the table
+/// parser could act on is written as a numeric entity, which the renderer
+/// shows as the character itself; `|` included, so no backslash is needed.
+function idCode(v) {
+  const text = String(v || '').replace(/\s*\n\s*/g, ' ').trim();
+  return `<code>${text.replace(/[\\`*_[\]<>&|~!]/g, c => `&#${c.charCodeAt(0)};`)}</code>`;
+}
+
 function markdown(rows) {
   const s = summary(rows);
   const out = [OPEN, `<!-- ${NOTE} -->`, ''];
@@ -96,10 +110,11 @@ function markdown(rows) {
     out.push('| what | state | caveat, or why it is not supported | example | proof |');
     out.push('|---|---|---|---|---|');
     for (const r of inArea) {
-      // id, example and proof are code spans: wrapped before escaping, so
-      // cell() leaves their backslashes as they are
+      // example and proof are each a cell's only code span: wrapped before
+      // escaping, so cell() leaves their backslashes as they are. The id
+      // shares its cell with the name, so it is not a backtick span.
       const code = v => cell(`\`${v}\``);
-      const what = `${cell(r.name || r.id)}<br>${code(r.id)}`;
+      const what = `${cell(r.name || r.id)}<br>${idCode(r.id)}`;
       const why = cell(r.caveat || r.reason) + (tracking(r).length ? ` Tracked in ${tracking(r).map(n => `#${n}`).join(', ')}.` : '');
       out.push(`| ${what} | ${LABEL[r.state] || r.state} | ${why} | ${r.example ? code(r.example) : '—'} | ${r.proof ? code(r.proof) : ''} |`);
     }
@@ -170,4 +185,4 @@ if (require.main === module) {
   if (!check) console.log('matrix-docs: README.md and docs/butterfly.html are in step with support/matrix.toml');
 }
 
-module.exports = {markdown, html, splice, run, cell, OPEN, CLOSE};
+module.exports = {markdown, html, splice, run, cell, idCode, OPEN, CLOSE};

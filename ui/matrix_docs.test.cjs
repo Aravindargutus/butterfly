@@ -9,7 +9,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const {loadMatrix} = require('../scripts/showcase/spec.cjs');
-const {markdown, html, splice, run, OPEN, CLOSE} = require('../scripts/showcase/matrix-docs.cjs');
+const {markdown, html, splice, run, idCode, OPEN, CLOSE} = require('../scripts/showcase/matrix-docs.cjs');
 
 test('the committed README and manual blocks are what the matrix generates', () => {
   assert.deepEqual(run(true), [], 'run: node scripts/showcase/matrix-docs.cjs');
@@ -27,7 +27,7 @@ test('every row appears in both renderings, with its state', () => {
   const md = markdown(rows);
   const h = html(rows);
   for (const r of rows) {
-    assert.ok(md.includes(`\`${r.id}\``), `README block is missing ${r.id}`);
+    assert.ok(md.includes(`<br>${idCode(r.id)} |`), `README block is missing ${r.id}`);
     assert.ok(h.includes(`>${r.id}<`), `manual block is missing ${r.id}`);
   }
   const n = st => rows.filter(r => r.state === st).length;
@@ -47,7 +47,23 @@ test('a backslash reads as itself in prose and in code spans', () => {
   const md = markdown([{id: 'x.back\\slash|id', name: 'name a\\b|c', area: 'A', state: 'caveats',
     caveat: 'prose a\\|b and `code a\\|b` and C:\\dir', example: 'ex\\ample', proof: 'p.rs::a\\b'}]);
   const row = md.split('\n').find(l => l.startsWith('| name'));
-  assert.equal(row, '| name a\\\\b\\|c<br>`x.back\\slash\\|id` | Handled, with caveats | prose a\\\\\\|b and `code a\\\\|b` and C:\\\\dir | `ex\\ample` | `p.rs::a\\b` |');
+  assert.equal(row, '| name a\\\\b\\|c<br><code>x.back&#92;slash&#124;id</code> | Handled, with caveats | prose a\\\\\\|b and `code a\\\\|b` and C:\\\\dir | `ex\\ample` | `p.rs::a\\b` |');
+});
+
+// GitHub parses the finished `what` cell as one inline string. When the id
+// was a backtick span, a lone backtick in the name paired with its opening
+// one across the <br>: the id lost its code formatting and the break showed
+// as text (PR #9 review). The id opens with no backtick to pair with, and
+// writes every character Markdown could act on as an entity.
+test('nothing in the name can reach into the id in the what cell', () => {
+  for (const name of ['a lone ` here', 'two `` ticks', 'closed `span` then `open', 'a *star and _under']) {
+    const md = markdown([{id: 'x.y', name, area: 'A', state: 'caveats', caveat: 'c'}]);
+    const what = md.split('\n').find(l => l.startsWith('| ' + name.slice(0, 3))).split(' | ')[0];
+    const [, id] = what.split('<br>');
+    assert.equal(id, '<code>x.y</code>', what);
+  }
+  assert.equal(idCode('a`b*c_d[e]f<g>h&i|j~k!l\\m'), '<code>a&#96;b&#42;c&#95;d&#91;e&#93;f&#60;g&#62;h&#38;i&#124;j&#126;k&#33;l&#92;m</code>');
+  assert.equal(idCode('BF-x.y-2'), '<code>BF-x.y-2</code>', 'an id of plain characters is written as itself');
 });
 
 test('a backtick run opens a code span only when one of the same length closes it', () => {
