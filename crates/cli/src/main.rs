@@ -58,6 +58,9 @@ enum Cmd {
         /// in_asm,exec,nochain` log, execlog CSV, or one address per line).
         #[arg(long)]
         trace: Option<PathBuf>,
+        /// Attach aggregate coverage from a SEGGER Ozone Code Profile Report (text).
+        #[arg(long)]
+        ozone_report: Option<PathBuf>,
         /// `.su` file from `-fstack-usage` (repeatable).
         #[arg(long = "stack-usage")]
         stack_usage: Vec<PathBuf>,
@@ -106,6 +109,8 @@ enum Cmd {
         #[command(flatten)]
         net: ServeFlags,
     },
+    /// Read a SEGGER Ozone Code Profile Report and print its coverage summary as JSON.
+    Ozone { report: PathBuf },
     /// Print a short textual summary of an evidence database.
     Summary { evidence: PathBuf },
     /// Optional: write a source definition index (<evidence-stem>.tags.json)
@@ -787,7 +792,23 @@ fn read_sidecar_text(path: &std::path::Path) -> Result<String> {
 fn main() -> Result<()> {
     let cli = Cli::parse();
     match cli.cmd {
-        Cmd::Ingest { dir, coverage, objects, build_info, source_root, allow_external_source, llvm_bin, trace, stack_usage, requirements, tests, baseline, config, out } => {
+        Cmd::Ingest {
+            dir,
+            coverage,
+            objects,
+            build_info,
+            source_root,
+            allow_external_source,
+            llvm_bin,
+            trace,
+            ozone_report,
+            stack_usage,
+            requirements,
+            tests,
+            baseline,
+            config,
+            out,
+        } => {
             let mut opts = match dir {
                 Some(d) => butterfly_ingest::discover(&d)?,
                 None => butterfly_ingest::IngestOptions::default(),
@@ -806,6 +827,7 @@ fn main() -> Result<()> {
             }
             opts.allow_external_source = allow_external_source;
             opts.llvm_bin = llvm_bin;
+            opts.ozone_report = ozone_report;
             if trace.is_some() {
                 opts.trace = trace;
             }
@@ -836,6 +858,9 @@ fn main() -> Result<()> {
             }
             for su in &opts.stack_usage {
                 eprintln!("stack    : {}", su.display());
+            }
+            if let Some(o) = &opts.ozone_report {
+                eprintln!("ozone    : {}", o.display());
             }
             let ev = butterfly_ingest::ingest(&opts)?;
             let json = serde_json::to_string(&ev)?;
@@ -1107,6 +1132,12 @@ fn main() -> Result<()> {
                 eprintln!("FAIL: obligations at or above `{fail_on}` exist");
                 std::process::exit(3);
             }
+            Ok(())
+        }
+        Cmd::Ozone { report } => {
+            let (report, _) = butterfly_ingest::ozone::read(&report, &butterfly_model::limits::Limits::from_env())?;
+            serde_json::to_writer_pretty(std::io::stdout().lock(), &report)?;
+            println!();
             Ok(())
         }
         Cmd::Summary { evidence } => {
@@ -1700,6 +1731,18 @@ fn print_summary_with(ev: &butterfly_model::Evidence, res: &butterfly_model::Res
         eprintln!("stack      worst case {w} B via {via} · {} symbol(s) unbounded", s.stack_unbounded);
     }
     eprintln!("data       {} globals referenced, {} function->global refs", s.globals, s.data_refs);
+    if let Some(report) = &ev.ozone_report {
+        // Ozone's own counts for the scope it exported, beside ours, not merged into them.
+        let total = &report.total;
+        eprintln!(
+            "ozone      {}/{} source lines, {}/{} instructions over {} function rows (Ozone's scope)",
+            total.source_lines.covered,
+            total.source_lines.total,
+            total.instructions.covered,
+            total.instructions.total,
+            report.modules.iter().map(|m| m.functions.len()).sum::<usize>()
+        );
+    }
     if !ev.tests.is_empty() {
         // Coverage nobody can name a test for is coverage a reviewer has to
         // take on trust; DO-178C 6.4.4 is about what the requirements-based

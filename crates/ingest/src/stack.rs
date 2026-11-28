@@ -368,6 +368,24 @@ fn count_reglist(ops: &str) -> usize {
 
 /// `.su` line: `file:line:col:function<TAB>bytes<TAB>static|dynamic[,bounded]`
 pub fn parse_su(text: &str) -> Vec<(String, u64, bool)> {
+    parse_su_records(text).into_iter().map(|r| (r.name, r.bytes, r.dynamic)).collect()
+}
+
+/// One `.su` record, with the source file its location names: the file that
+/// defines the function, which tells two same-named functions from different
+/// translation units apart (#10).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SuRecord {
+    /// The location's file, as the compiler wrote it; empty when the location
+    /// carries no `:line:` to end one.
+    pub file: String,
+    pub name: String,
+    pub bytes: u64,
+    pub dynamic: bool,
+}
+
+/// [`parse_su`], keeping each record's file.
+pub fn parse_su_records(text: &str) -> Vec<SuRecord> {
     let mut out = Vec::new();
     for line in text.lines() {
         let mut parts = line.split('\t');
@@ -378,24 +396,24 @@ pub fn parse_su(text: &str) -> Vec<(String, u64, bool)> {
         if qual.is_empty() {
             continue;
         }
-        let name = su_function(loc).trim();
+        let (file, name) = su_location(loc);
         let Ok(b) = bytes.trim().parse::<u64>() else { continue };
         // Fail closed: anything other than exact `static` (including `dynamic`,
         // `dynamic,bounded`, or an unknown qualifier) is marked dynamic.
-        out.push((name.to_string(), b, !qual.eq_ignore_ascii_case("static")));
+        out.push(SuRecord { file: file.trim().to_string(), name: name.trim().to_string(), bytes: b, dynamic: !qual.eq_ignore_ascii_case("static") });
     }
     out
 }
 
-/// The function field of a `.su` location: everything after `:line:` and,
-/// where there is one, `col:` -- read by the fields, not by splitting on the
-/// last `:`. GCC writes a C++ function by its printable name (`int
-/// ns::C::m(int)`), whose `::` the last-colon split cut down to `m(int)`
-/// (#325). Clang writes `file:line:function`, with no column. The first
-/// `:<digits>:` ends the file, so a Windows drive letter (`C:\src\a.c`) or
-/// a `:` elsewhere in a path stays in the file; a location with none is
-/// all name.
-fn su_function(loc: &str) -> &str {
+/// The file and function fields of a `.su` location: the function is
+/// everything after `:line:` and, where there is one, `col:` -- read by the
+/// fields, not by splitting on the last `:`. GCC writes a C++ function by its
+/// printable name (`int ns::C::m(int)`), whose `::` the last-colon split cut
+/// down to `m(int)` (#325). Clang writes `file:line:function`, with no column.
+/// The first `:<digits>:` ends the file, so a Windows drive letter
+/// (`C:\src\a.c`) or a `:` elsewhere in a path stays in the file; a location
+/// with none is all name, and no file.
+fn su_location(loc: &str) -> (&str, &str) {
     let digits = |s: &str| s.bytes().take_while(u8::is_ascii_digit).count();
     for (i, _) in loc.match_indices(':') {
         let rest = &loc[i + 1..];
@@ -405,9 +423,9 @@ fn su_function(loc: &str) -> &str {
         }
         let after = &rest[n + 1..];
         let c = digits(after);
-        return if c > 0 && after[c..].starts_with(':') { &after[c + 1..] } else { after };
+        return (&loc[..i], if c > 0 && after[c..].starts_with(':') { &after[c + 1..] } else { after });
     }
-    loc
+    ("", loc)
 }
 
 pub struct StackNode {
