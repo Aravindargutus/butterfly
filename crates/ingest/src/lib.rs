@@ -23,6 +23,7 @@ pub mod helper;
 pub mod impact;
 pub mod jumptable;
 pub mod objectcode;
+pub mod ozone;
 pub mod pertest;
 pub mod preflight;
 pub mod provenance;
@@ -86,6 +87,8 @@ pub struct IngestOptions {
     /// Execution trace (QEMU `-d in_asm,exec,nochain` log, execlog CSV, or
     /// a plain address list) for measured object coverage.
     pub trace: Option<PathBuf>,
+    /// SEGGER Ozone Code Profile Report (text).
+    pub ozone_report: Option<PathBuf>,
     /// A requirements universe: one requirement ID per line (`#` comments
     /// allowed). Makes "a requirement with no code" knowable in the matrix;
     /// tags alone cannot prove absence (#42).
@@ -732,6 +735,14 @@ pub fn ingest(opts: &IngestOptions) -> Result<Evidence> {
     let cov = if gcov::looks_like(&cov_text) { gcov::parse(&cov_text)? } else { coverage::parse(&cov_text)? };
     // what the export itself could not say (older llvm-cov record layouts)
     caveats.extend(cov.caveats.iter().cloned());
+
+    let ozone_report = if let Some(path) = &opts.ozone_report {
+        let (report, input) = ozone::read(path, &lim)?;
+        inputs.push(input);
+        Some(report)
+    } else {
+        None
+    };
 
     // --- source files ----------------------------------------------------
     // The filenames come from the coverage export, and their contents are
@@ -3062,6 +3073,7 @@ pub fn ingest(opts: &IngestOptions) -> Result<Evidence> {
         globals,
         image,
         measured,
+        ozone_report,
         baseline: None,
         changes: None,
     };

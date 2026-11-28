@@ -87,6 +87,7 @@ fn minimal() -> Evidence {
         globals: vec![],
         image: None,
         measured: None,
+        ozone_report: None,
         baseline: None,
         changes: None,
     }
